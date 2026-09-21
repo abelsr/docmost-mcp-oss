@@ -129,9 +129,7 @@ class Handler(BaseHTTPRequestHandler):
             hits = (
                 []
                 if body["query"] == "nada"
-                else [
-                    {"id": PAGE, "title": "Conventions", "rank": 0.7, "spaceId": body["spaceId"]}
-                ]
+                else [{"id": PAGE, "title": "Conventions", "rank": 0.7, "spaceId": body["spaceId"]}]
             )
             # The response is a raw list (real observed shape).
             return self._send(200, {"data": hits, "success": True, "status": 200})

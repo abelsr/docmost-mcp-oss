@@ -1,14 +1,36 @@
 [project]
 name = "docmost-mcp"
 version = "0.1.0"
-description = "MCP server (FastMCP) for Docmost, on top of its internal REST API"
+description = "MCP server (FastMCP) for Docmost: read and edit pages, spaces and comments over the REST API and the Yjs collaboration WebSocket"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+authors = [{ name = "Abel Santillan Rodriguez" }]
+keywords = ["mcp", "model-context-protocol", "docmost", "fastmcp", "yjs", "wiki"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Documentation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "fastmcp>=4.0,<5",
     "httpx>=0.27",
     "python-dotenv>=1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/abelsr/docmost-mcp"
+Repository = "https://github.com/abelsr/docmost-mcp"
+Issues = "https://github.com/abelsr/docmost-mcp/issues"
+Changelog = "https://github.com/abelsr/docmost-mcp/commits/main"
 
 [project.scripts]
 docmost-mcp = "docmost_mcp.server:main"
@@ -16,6 +38,9 @@ docmost-mcp = "docmost_mcp.server:main"
 [project.optional-dependencies]
 # Writing page bodies via Docmost's Yjs WebSocket.
 yjs = ["pycrdt>=0.14", "websockets>=13"]
+
+[dependency-groups]
+dev = ["ruff>=0.15"]
 
 [build-system]
 requires = ["hatchling"]

@@ -177,7 +177,7 @@ POST /api/pages/import
 Content-Type: multipart/form-data
 
 spaceId=<uuid>
-file=@pagina.md   (Content-Type: text/markdown)
+file=@page.md     (Content-Type: text/markdown)
 ```
 
 - Creates a new page **with** the file's body.

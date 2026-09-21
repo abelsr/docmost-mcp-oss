@@ -219,8 +219,7 @@ def main() -> None:
         default=False,
         choices=[True, "keep"],
         help=(
-            "Also create/update/delete a test page. "
-            "Use --write keep to not delete it at the end."
+            "Also create/update/delete a test page. Use --write keep to not delete it at the end."
         ),
     )
     args = ap.parse_args()

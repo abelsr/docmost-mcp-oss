@@ -1,5 +1,9 @@
 # docmost-mcp
 
+[![CI](https://github.com/abelsr/docmost-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/abelsr/docmost-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 An [MCP](https://modelcontextprotocol.io) server built with **FastMCP** that exposes the REST API of [Docmost](https://docmost.com) as tools for AI assistants (Claude Desktop, Claude Code, Cursor, VS Code…).
 
 Managed with **[uv](https://docs.astral.sh/uv/)**.
@@ -9,7 +13,7 @@ Managed with **[uv](https://docs.astral.sh/uv/)**.
 
 ## Why a custom MCP?
 
-Docmost ships with an **official** MCP, but it requires a *Business/Enterprise*l icense and is enabled from *Settings → AI settings → MCP*. This project uses the **internal API** (the same one the web UI consumes), which is also available in the **self-hosted OSS** edition.
+Docmost ships with an **official** MCP, but it requires a *Business/Enterprise* license and is enabled from *Settings → AI settings → MCP*. This project uses the **internal API** (the same one the web UI consumes), which is also available in the **self-hosted OSS** edition.
 
 ## Exposed tools (20)
 
@@ -132,18 +136,19 @@ Same as Claude Desktop, inside the `mcpServers` key.
 | Command                                               | What it validates                          | Needs instance |
 | ----------------------------------------------------- | ------------------------------------------ | -------------- |
 | `uv run python tests/test_client.py`                | Client against a mocked Docmost (12 cases) | No             |
+| `uv run python tests/test_tools.py`                 | MCP tool registry                          | No             |
 | `uv run python tests/smoke_live.py`                 | Read-only against a real instance          | Yes            |
 | `uv run python tests/smoke_mcp_live.py`             | Tools through the MCP layer                | Yes            |
 | `uv run --extra yjs python tests/smoke_yjs_live.py` | **Body editing via Yjs** (7 checks)  | Yes            |
-| `uvx ruff check .`                                  | Lint                                       | No             |
+| `uv run ruff check .`                               | Lint                                       | No             |
 
 The live tests read credentials from `.docmost-creds.json` (ignored by git):
 
 ```json
 {
   "url": "https://docmost.example.com",
-  "email": "tu@email.com",
-  "password": "tu_password"
+  "email": "you@example.com",
+  "password": "your-password"
 }
 ```
 
@@ -178,10 +183,18 @@ docmost-mcp/
 │   └── YJS-EDITING.md  # collaboration WebSocket protocol
 ├── tests/
 │   ├── test_client.py      # mocked, no network
+│   ├── test_tools.py       # MCP tool registry, no network
 │   ├── smoke_live.py       # real instance, read-only
 │   ├── smoke_mcp_live.py   # MCP layer against a real instance
 │   └── smoke_yjs_live.py   # body editing via Yjs
-├── pyproject.toml      # metadata, dependencies and ruff config
-├── uv.lock             # reproducible resolution (it is versioned)
+├── .github/workflows/ci.yml  # lint, tests and packaging
+├── CONTRIBUTING.md
+├── LICENSE                   # MIT
+├── pyproject.toml            # metadata, dependencies and ruff config
+├── uv.lock                   # reproducible resolution (it is versioned)
 └── .env.example
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 Abel Santillan Rodriguez

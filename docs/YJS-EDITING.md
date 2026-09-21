@@ -110,7 +110,7 @@ formatting attributes over ranges of `XmlText`:
 ```python
 text = XmlText()
 paragraph.children.append(text)
-text.insert(0, "hola", {"bold": True})     # **hola**
+text.insert(0, "hello", {"bold": True})  # **hello**
 ```
 
 > Note on pycrdt: a node must **be integrated into the document before**

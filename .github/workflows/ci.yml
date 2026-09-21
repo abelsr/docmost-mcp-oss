@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      # The `yjs` extra is installed so the collab module is imported too.
+      - name: Install dependencies
+        run: uv sync --frozen --extra yjs
+
+      # Offline suites: they run against a simulated Docmost and need no
+      # credentials. The `smoke_*` scripts hit a real instance and are
+      # intentionally not run here.
+      - name: Client tests
+        run: uv run python tests/test_client.py
+
+      - name: Tool registry
+        run: uv run python tests/test_tools.py
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Inspect the wheel
+        run: |
+          python -m zipfile -l dist/*.whl > /tmp/wheel.txt
+          cat /tmp/wheel.txt
+          grep -q "docmost_mcp/client.py" /tmp/wheel.txt
+          grep -q "docmost_mcp/collab.py" /tmp/wheel.txt
+          grep -q "licenses/LICENSE" /tmp/wheel.txt
+          echo "OK: wheel contains the package and the LICENSE"
