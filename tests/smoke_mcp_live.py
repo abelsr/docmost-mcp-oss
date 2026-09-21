@@ -67,6 +67,28 @@ async def main(write: bool) -> int:
         spaces = (await client.call_tool("list_spaces", {})).data
         print(f"  ✓ {len(spaces)} space(s): {[s['name'] for s in spaces]}")
 
+        print("\n▸ get_workspace_overview")
+        overview = (await client.call_tool("get_workspace_overview", {})).data
+        print(f"  ✓ {overview['total_spaces']} space(s), {overview['total_pages']} page(s)")
+        for space in overview["spaces"]:
+            titles = [p["title"] for p in space["pages"]]
+            print(f"      [{space['name']}] {space['page_count']}: {titles}")
+        # The roots-only call must be a subset: the overview walks the tree.
+        roots = 0
+        for space in spaces:
+            listed = await client.call_tool("list_child_pages", {"space_id": space["id"]})
+            roots += len(listed.data["items"])
+        assert overview["total_pages"] >= roots, (overview["total_pages"], roots)
+        print(f"  ✓ overview page count ({overview['total_pages']}) >= root-only count ({roots})")
+
+        print("\n▸ list_child_pages without arguments is refused")
+        try:
+            await client.call_tool("list_child_pages", {})
+            print("  ✗ it should have failed")
+        except Exception as exc:  # noqa: BLE001 - the message is what matters
+            assert "get_workspace_overview" in str(exc), exc
+            print("  ✓ points the caller at get_workspace_overview")
+
         print("\n▸ search_pages")
         # Derive a meaningful query word from a real page title so the test works
         # on any instance (a full-text query needs a real word; stopwords return 0).

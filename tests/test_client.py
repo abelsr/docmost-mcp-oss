@@ -32,9 +32,13 @@ EMAIL = "user@example.com"
 PASSWORD = "secret"
 SPACE = "01a0c225-d97c-791f-98d0-296b43df9da7"
 PAGE = "01a0c23e-870b-7d54-99dd-cc4865174ba8"
+CHILD = "01a0c54b-0000-7000-8000-000000000001"
 
 # Login mode simulated by the server: "cookie" or "tokens".
 LOGIN_MODE = "cookie"
+
+# Records every /pages/move call, so tests can assert on nesting.
+MOVED: list[dict] = []
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -171,14 +175,42 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/pages/sidebar-pages":
             if not body.get("spaceId"):
                 return self._send(400, {"statusCode": 400, "message": ["spaceId must be a UUID"]})
+            # With `pageId`, the direct children of that page; otherwise the roots.
+            if body.get("pageId"):
+                items = [
+                    {
+                        "id": CHILD,
+                        "title": "Child",
+                        "parentPageId": PAGE,
+                        "hasChildren": False,
+                        "position": "a0002",
+                    }
+                ]
+            else:
+                items = [
+                    {
+                        "id": PAGE,
+                        "title": "Conventions",
+                        "parentPageId": None,
+                        "hasChildren": True,
+                        "position": "a0001",
+                    }
+                ]
             return self._send(
-                200,
-                {
-                    "data": {"items": [{"id": PAGE, "title": "Conventions"}], "meta": {}},
-                    "success": True,
-                    "status": 200,
-                },
+                200, {"data": {"items": items, "meta": {}}, "success": True, "status": 200}
             )
+
+        if path == "/api/pages/move":
+            if not body.get("pageId") or not body.get("position"):
+                return self._send(400, {"statusCode": 400, "message": ["pageId must be a string"]})
+            MOVED.append(
+                {
+                    "pageId": body.get("pageId"),
+                    "parentPageId": body.get("parentPageId"),
+                    "position": body.get("position"),
+                }
+            )
+            return self._send(200, {"data": {}, "success": True, "status": 200})
 
         if path == "/api/pages/breadcrumbs":
             # Raw list, not {items}.
@@ -217,7 +249,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200,
                 {
-                    "data": {"id": "imp-1", "slugId": "imp123", "title": title},
+                    "data": {
+                        "id": "imp-1",
+                        "slugId": "imp123",
+                        "title": title,
+                        "position": "a0003",
+                    },
                     "success": True,
                     "status": 200,
                 },
@@ -321,13 +358,44 @@ async def run_tests(base_url: str) -> None:
 
         # --- 8. list_child_pages requires spaceId; resolved from page_id ---
         kids = await dm.list_child_pages(page_id=PAGE)
-        assert kids and kids[0]["id"] == PAGE, kids
+        assert kids and kids[0]["id"] == CHILD, kids
         try:
             await dm.list_child_pages()
             raise AssertionError("should require space_id (or page_id)")
         except ValueError as exc:
             assert "space_id (or page_id)" in str(exc), exc
         print("✓ list_child_pages resolves space_id from page_id")
+
+        # --- 8b. list_all_pages walks the whole tree, one level is not enough ---
+        roots = await dm.list_child_pages(space_id=SPACE)
+        assert [p["id"] for p in roots] == [PAGE], roots
+
+        everything = await dm.list_all_pages(space_id=SPACE)
+        assert [p["id"] for p in everything] == [PAGE, CHILD], everything
+        assert everything[0]["depth"] == 0 and everything[0]["has_children"] is True
+        assert everything[1]["depth"] == 1 and everything[1]["parent_page_id"] == PAGE
+        print("✓ list_all_pages walks the tree (roots alone miss nested pages)")
+
+        # --- 8c. create_page with content AND a parent still nests ---
+        MOVED.clear()
+        before = len(MOVED)
+        page = await dm.create_page(
+            SPACE, title="Nested", content="# Nested\n\nbody", parent_page_id=PAGE
+        )
+        assert page["slugId"] == "imp123", page
+        # `/pages/import` ignores parentPageId, so the client must nest it after.
+        assert len(MOVED) == before + 1, f"/pages/move was not called: {MOVED}"
+        assert MOVED[-1]["pageId"] == "imp123", MOVED
+        assert MOVED[-1]["parentPageId"] == PAGE, MOVED
+        assert MOVED[-1]["position"] == "a0003", MOVED  # keeps its own position
+        assert page["parentPageId"] == PAGE, page
+        print("✓ create_page nests content pages via /pages/move (import ignores the parent)")
+
+        # --- 8d. create_page without content nests directly via /pages/create ---
+        MOVED.clear()
+        await dm.create_page(SPACE, title="Root only", parent_page_id=PAGE)
+        assert MOVED == [], f"unexpected /pages/move call: {MOVED}"
+        print("✓ create_page without content does not need a move")
 
     # --- 9. Translated errors ---
     bad = DocmostClient(base_url, email=EMAIL, password="malo")

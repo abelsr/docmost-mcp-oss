@@ -22,19 +22,26 @@ projects by different authors, and they would collide if installed side by side 
 ship the same import package). This one targets self-hosted Docmost and can edit page bodies;
 install it as `docmost-mcp-oss`.
 
-## Exposed tools (20)
+## Exposed tools (21)
 
 | Category | Tools                                                                                                                                                                                                                                              |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pages    | `search_pages`, `get_page`, `create_page`, `update_page`, **`update_page_content`**, `delete_page`, `restore_page`, `move_page`, `list_recent_pages`, `list_child_pages`, `get_page_breadcrumbs`, `get_page_history` |
+| Pages    | **`get_workspace_overview`**, `search_pages`, `get_page`, `create_page`, `update_page`, **`update_page_content`**, `delete_page`, `restore_page`, `move_page`, `list_recent_pages`, `list_child_pages`, `get_page_breadcrumbs`, `get_page_history` |
 | Spaces   | `list_spaces`, `get_space`, `create_space`                                                                                                                                                                                                   |
 | Comments | `get_comments`, `create_comment`, `update_comment`                                                                                                                                                                                           |
 | User     | `get_current_user`, `list_workspace_members`                                                                                                                                                                                                   |
 
-Two tools stand out:
+Three tools stand out:
 
+- **`get_workspace_overview`** answers *"what is in my Docmost?"* in a single call:
+  every space and every page, walking the whole tree. Handy as a first step before
+  drilling into anything.
 - **`get_page`** returns **metadata and content** in Markdown (it combines `/pages/info` with `/pages/export`, because the former **does not** return the body).
 - **`update_page_content`** **replaces the body of an existing page**. The REST API can't do this: it writes directly to the Yjs document over the collaboration WebSocket. Requires the `yjs` extra and takes ~13 s (Docmost persists with a 10 s *debounce*).
+
+> `list_child_pages` lists **one level only** (the direct children of a space or a
+> page). Enumerating a space means walking its tree, which is what
+> `get_workspace_overview` does for you.
 
 ## Editing the body of an existing page
 

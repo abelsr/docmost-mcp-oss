@@ -31,9 +31,11 @@ from .client import DocmostClient, DocmostError
 mcp = FastMCP(
     "Docmost",
     instructions=(
-        "MCP server for a Docmost workspace. Typical flow: use "
-        "`list_spaces` to discover spaces, `search_pages` to "
-        "find pages and `get_page` to read them (returns Markdown). "
+        'MCP server for a Docmost workspace. To answer "what is in this '
+        'workspace?" or to get an inventory, start with '
+        "`get_workspace_overview`, which lists every space and every page "
+        "(including nested ones). Then `get_page` reads a page (returns "
+        "Markdown) and `search_pages` finds one by keyword. "
         "To create content use `create_page` with Markdown; to "
         "**replace the body of an existing page** use "
         "`update_page_content` (via the Yjs WebSocket, takes ~13 s); to "
@@ -238,35 +240,77 @@ async def list_recent_pages(space_id: str | None = None, limit: int = 20) -> lis
 
 
 @mcp.tool
+async def get_workspace_overview(
+    space_id: str | None = None,
+    max_pages: int = 500,
+) -> dict:
+    """**Start here.** Lists everything in the workspace: every space and every page.
+
+    Use this to answer questions like "what do I have in Docmost?", to take an
+    inventory, or to find a page by title before reading it with `get_page`.
+    Unlike `list_child_pages`, it walks the whole page tree, so nested pages are
+    included.
+
+    Each page carries `id`, `slug_id`, `title`, `parent_page_id` and `depth`,
+    which is enough to rebuild the tree or to list everything flat.
+
+    Args:
+        space_id: UUID of a single space to limit the listing (optional).
+            Without it, every space the user can access is included.
+        max_pages: Safety cap on the total number of pages returned.
+    """
+    client = await _get_client()
+    spaces = [await client.get_space(space_id)] if space_id else await client.list_spaces(limit=100)
+
+    described: list[dict] = []
+    remaining = max(1, max_pages)
+    for space in spaces:
+        if not isinstance(space, dict) or not space.get("id"):
+            continue
+        pages = await client.list_all_pages(space_id=space["id"], max_pages=remaining)
+        remaining -= len(pages)
+        described.append(
+            {
+                "id": space["id"],
+                "name": space.get("name"),
+                "slug": space.get("slug"),
+                "page_count": len(pages),
+                "pages": pages,
+            }
+        )
+        if remaining <= 0:
+            break
+
+    return {
+        "total_pages": sum(s["page_count"] for s in described),
+        "total_spaces": len(described),
+        "truncated": remaining <= 0,
+        "spaces": described,
+    }
+
+
+@mcp.tool
 async def list_child_pages(
     space_id: str | None = None,
     page_id: str | None = None,
     limit: int = 100,
 ) -> dict:
-    """Lists child pages: the navigation tree.
+    """Lists only the **direct** children of a space or a page.
 
-    With no arguments it returns the complete tree of all spaces. With
-    `space_id`, the roots of that space; with `page_id`, the children of that
-    page (the `space_id` is resolved automatically).
+    This is one level, not the whole tree. To enumerate everything in the
+    workspace, use `get_workspace_overview` instead.
 
     Args:
-        space_id: UUID of the space (optional).
-        page_id: UUID or slugId of the parent page (optional).
+        space_id: UUID of the space whose root pages you want.
+        page_id: UUID or slugId of the parent page whose children you want
+            (the `space_id` is resolved automatically).
         limit: Maximum number of results.
     """
-    client = await _get_client()
     if not space_id and not page_id:
-        spaces = await client.list_spaces(limit=100)
-        return {
-            "spaces": [
-                {
-                    "id": space["id"],
-                    "name": space.get("name"),
-                    "pages": await client.list_child_pages(space_id=space["id"], limit=limit),
-                }
-                for space in spaces
-            ]
-        }
+        raise ValueError(
+            "Provide space_id or page_id. To list the whole workspace, use get_workspace_overview."
+        )
+    client = await _get_client()
     return {"items": await client.list_child_pages(space_id=space_id, page_id=page_id, limit=limit)}
 
 

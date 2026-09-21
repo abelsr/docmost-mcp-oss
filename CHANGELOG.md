@@ -7,6 +7,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
+### Added
+
+- **`get_workspace_overview`**: lists every space and every page in one call,
+  walking the whole page tree. Answers "what is in my Docmost?" without having to
+  guess a page id first.
+- `DocmostClient.list_all_pages()`, which enumerates a space depth-first,
+  carrying `parent_page_id` and `depth` on each entry. Cycles are guarded
+  against.
+
+### Fixed
+
+- **`create_page` silently dropped `parent_page_id` when `content` was given.**
+  Pages created with both always landed at the root, because `/pages/import`
+  accepts but ignores a `parentPageId` field. Nesting is now applied afterwards
+  through `/pages/move`, which is the endpoint that actually sets the parent,
+  and the page keeps the position it was created with.
+- `list_child_pages` with no arguments returned only the root pages of every
+  space while reading as if it returned the whole tree. It now requires
+  `space_id` or `page_id` and points the caller at `get_workspace_overview`.
+  The underlying reason is that `/pages/sidebar-pages` returns one level, never
+  the full tree.
+
 ## [0.1.1] - 2026-09-21
 
 ### Added
@@ -45,6 +69,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MIT license, `CONTRIBUTING.md`, and a CI workflow covering lint, offline tests
   on Python 3.10/3.12/3.13, and packaging.
 
-[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/abelsr/docmost-mcp-oss/releases/tag/v0.1.0

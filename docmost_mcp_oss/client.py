@@ -398,20 +398,32 @@ class DocmostClient:
             body_text = _ensure_heading(content, title, format)
 
         await self.authenticate()
-        data: dict[str, Any] = {"spaceId": space_id}
-        if parent_page_id:
-            data["parentPageId"] = parent_page_id
-
         resp = await self._client.post(
             f"{API_PREFIX}/pages/import",
-            data=data,
+            data={"spaceId": space_id},
             files={"file": (filename or f"page.{ext}", body_text.encode(), mime)},
             headers=self._headers(),
         )
         payload = _safe_json(resp)
         if resp.status_code >= 400:
             raise DocmostError(resp.status_code, _error_message(payload), payload)
-        return (payload or {}).get("data") or {}
+        page = (payload or {}).get("data") or {}
+
+        # `/pages/import` accepts but ignores a `parentPageId` field (verified
+        # against a real instance), so the page always lands at the root.
+        # Nesting is applied afterwards with `/pages/move`, which is the
+        # endpoint that actually sets the parent. The page keeps the position it
+        # was given at creation so it does not jump around.
+        if parent_page_id and page:
+            page_id = page.get("slugId") or page.get("id")
+            if page_id:
+                await self.move_page(
+                    page_id,
+                    page.get("position") or "a0000",
+                    parent_page_id=parent_page_id,
+                )
+                page["parentPageId"] = parent_page_id
+        return page
 
     async def update_page(
         self,
@@ -489,6 +501,68 @@ class DocmostClient:
         if page_id:
             body["pageId"] = page_id
         return _items(await self.request("/pages/sidebar-pages", body))
+
+    async def list_all_pages(
+        self,
+        *,
+        space_id: str | None = None,
+        max_pages: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Every page in a space (or in the whole workspace), flattened.
+
+        `/pages/sidebar-pages` only returns the children of a given node — a
+        `{spaceId}` call gives the roots, not the whole tree — so enumerating a
+        space means walking it. That is what this does, returning one flat list
+        where each entry carries `parent_page_id` and `depth` so the tree can be
+        reconstructed.
+        """
+        if space_id:
+            space_ids = [space_id]
+        else:
+            space_ids = [s["id"] for s in await self.list_spaces(limit=100)]
+
+        pages: list[dict[str, Any]] = []
+        for sid in space_ids:
+            pages.extend(await self._walk_space(sid, max_pages=max_pages - len(pages)))
+            if len(pages) >= max_pages:
+                break
+        return pages
+
+    async def _walk_space(self, space_id: str, *, max_pages: int = 500) -> list[dict[str, Any]]:
+        """Depth-first walk of a space's page tree. Cycles are guarded against."""
+        found: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        async def walk(page_id: str | None, depth: int) -> None:
+            if len(found) >= max_pages:
+                return
+            body: dict[str, Any] = {"spaceId": space_id}
+            if page_id:
+                body["pageId"] = page_id
+            for item in _items(await self.request("/pages/sidebar-pages", body)):
+                page_key = item.get("id")
+                if not page_key or page_key in seen:
+                    continue
+                seen.add(page_key)
+                found.append(
+                    {
+                        "id": page_key,
+                        "slug_id": item.get("slugId"),
+                        "title": item.get("title"),
+                        "icon": item.get("icon"),
+                        "parent_page_id": item.get("parentPageId"),
+                        "position": item.get("position"),
+                        "has_children": bool(item.get("hasChildren")),
+                        "depth": depth,
+                    }
+                )
+                if len(found) >= max_pages:
+                    return
+                if item.get("hasChildren"):
+                    await walk(page_key, depth + 1)
+
+        await walk(None, 0)
+        return found
 
     async def get_page_breadcrumbs(self, page_id: str) -> list[dict]:
         return _items(await self.request("/pages/breadcrumbs", {"pageId": page_id}))

@@ -28,6 +28,7 @@ EXPECTED_TOOLS = {
     "restore_page",
     "move_page",
     "list_recent_pages",
+    "get_workspace_overview",
     "list_child_pages",
     "get_page_breadcrumbs",
     "get_page_history",
