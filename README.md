@@ -1,6 +1,7 @@
 # docmost-mcp-oss
 
 [![CI](https://github.com/abelsr/docmost-mcp-oss/actions/workflows/ci.yml/badge.svg)](https://github.com/abelsr/docmost-mcp-oss/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/docmost-mcp-oss.svg)](https://pypi.org/project/docmost-mcp-oss/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/abelsr/docmost-mcp-oss/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
@@ -59,6 +60,18 @@ uv sync --extra yjs     # enables update_page_content
 Technical details of the protocol: [`docs/YJS-EDITING.md`](https://github.com/abelsr/docmost-mcp-oss/blob/main/docs/YJS-EDITING.md).
 
 ## Installation
+
+### As a tool, from PyPI (no clone needed)
+
+```bash
+uvx docmost-mcp-oss            # stdio, for MCP clients
+uvx docmost-mcp-oss --check    # verify the connection to your instance
+```
+
+Add `--with pycrdt --with websockets` (or install `docmost-mcp-oss[yjs]`) to enable
+`update_page_content`, the tool that edits existing page bodies.
+
+### From source (for development)
 
 `uv` creates the virtual environment and installs the dependencies (pinned in `uv.lock`):
 
