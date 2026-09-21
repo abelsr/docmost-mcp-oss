@@ -44,7 +44,8 @@ Four things stand out:
 - **`move_page`** takes a destination, not a position: nest it with
   `parent_page_id`, or sit it next to a sibling with `after`/`before`. Docmost's
   position strings are generated for you.
-- **`update_page_content`** **replaces the body of an existing page**. The REST API can't do this: it writes directly to the Yjs document over the collaboration WebSocket. Requires the `yjs` extra and takes ~13 s (Docmost persists with a 10 s *debounce*).
+- **`update_page_content`** **writes the body of an existing page**, with a
+  `mode` of `"replace"`, `"append"` or `"prepend"`. The REST API can't do this: it writes directly to the Yjs document over the collaboration WebSocket. Requires the `yjs` extra and takes ~13 s (Docmost persists with a 10 s *debounce*).
 
 > `list_child_pages` lists **one level only** (the direct children of a space or a
 > page). Enumerating a space means walking its tree, which is what

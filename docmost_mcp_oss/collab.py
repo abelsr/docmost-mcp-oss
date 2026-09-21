@@ -238,18 +238,33 @@ class CollabClient:
         return [_block_from_node(child) for child in _children(self.fragment)]
 
     # -- writing --------------------------------------------------------- #
-    async def replace_blocks(self, blocks: list[Block]) -> int:
-        """Replaces **all** the content and sends the delta. Returns the bytes sent."""
+    async def replace_blocks(self, blocks: list[Block], *, mode: str = "replace") -> int:
+        """Writes `blocks` into the document and sends the delta.
+
+        `mode` decides what happens to the existing content, mirroring the
+        `operation` field Docmost's own API documents for page updates:
+
+        * ``"replace"`` — drop everything and write `blocks` (the default).
+        * ``"append"`` — keep the content and add `blocks` at the end.
+        * ``"prepend"`` — keep the content and add `blocks` at the start.
+
+        Unlike the REST endpoint, these actually work: that one accepts
+        `operation` and ignores it, because the body belongs to this document.
+
+        Returns the number of bytes sent.
+        """
+        if mode not in ("replace", "append", "prepend"):
+            raise ValueError("mode must be 'replace', 'append' or 'prepend'")
         assert self._doc is not None and self._server_state is not None
         fragment = self.fragment
 
-        # Clear the current content.
-        del fragment.children[:]
+        if mode == "replace":
+            del fragment.children[:]
 
         # Rebuild. Important: the element must be integrated into the document
         # BEFORE touching its attributes or children.
-        for block in blocks:
-            _append_block(fragment, block)
+        for offset, block in enumerate(blocks):
+            _append_block(fragment, block, at=offset if mode == "prepend" else None)
 
         delta = self._doc.get_update(self._server_state)
         await self._ws.send(
@@ -289,9 +304,12 @@ def _block_from_node(node: Any) -> Block:
     return block
 
 
-def _append_block(parent: Any, block: Block) -> None:
+def _append_block(parent: Any, block: Block, *, at: int | None = None) -> None:
     element = XmlElement(block.tag)
-    parent.children.append(element)  # integrates the node into the document
+    if at is None:
+        parent.children.append(element)  # integrates the node into the document
+    else:
+        parent.children.insert(at, element)
     for key, value in block.attrs.items():
         element.attributes[key] = value
     for run in block.runs:
@@ -341,8 +359,10 @@ async def blocks_from_markdown(client: Any, space_id: str, markdown: str) -> lis
         await client.delete_page(page_id)
 
 
-async def update_page_content(client: Any, page_id: str, markdown: str) -> dict[str, Any]:
-    """Replaces the body of an existing page with the given Markdown.
+async def update_page_content(
+    client: Any, page_id: str, markdown: str, *, mode: str = "replace"
+) -> dict[str, Any]:
+    """Writes the given Markdown into an existing page's body.
 
     This is the operation the REST API **cannot** do. It combines:
 
@@ -360,11 +380,12 @@ async def update_page_content(client: Any, page_id: str, markdown: str) -> dict[
     blocks = await blocks_from_markdown(client, space_id, markdown)
     async with CollabClient(client.base_url, client._bearer) as collab:
         await collab.open(page_id)
-        sent = await collab.replace_blocks(blocks)
+        sent = await collab.replace_blocks(blocks, mode=mode)
         await collab.wait_for_persistence()
 
     return {
         "page_id": page_id,
+        "mode": mode,
         "blocks": len(blocks),
         "bytes_sent": sent,
         "persisted": True,

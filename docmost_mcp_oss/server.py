@@ -153,23 +153,34 @@ async def update_page(page_id: str, title: str | None = None) -> dict:
 
 
 @mcp.tool
-async def update_page_content(page_id: str, markdown: str) -> dict:
-    """**Replaces the body** of an already-created page with the given Markdown.
+async def update_page_content(
+    page_id: str,
+    markdown: str,
+    mode: str = "replace",
+) -> dict:
+    """**Writes into the body** of an already-created page.
 
-    This is the operation Docmost's REST API cannot do: the body lives in the
-    Yjs collaboration server. This tool opens the collaboration WebSocket,
-    replaces the document and waits for it to be persisted (~13 s).
+    Docmost's REST API cannot do this — the body lives in the Yjs collaboration
+    server — so this tool opens the collaboration WebSocket, edits the document
+    and waits for it to be persisted (~13 s).
+
+    Unlike `/pages/update`, which accepts an `operation` field and ignores it,
+    `mode` genuinely works here:
+
+    - `"replace"` (default): the page ends up with exactly this Markdown.
+    - `"append"`: keeps what is there and adds this at the end.
+    - `"prepend"`: keeps what is there and adds this at the start.
 
     The Markdown is converted with Docmost's own converter, so it supports its
     whole schema: headings, bold, italics, code, lists, tables, blockquotes,
     code blocks, etc.
 
-    ⚠️ Replaces **all** the page's previous content. Requires the `yjs` extra
-    to be installed (`uv sync --extra yjs`).
+    Requires the `yjs` extra (`uv sync --extra yjs`).
 
     Args:
         page_id: UUID or slugId of the page to edit.
-        markdown: New complete content, in Markdown.
+        markdown: Content to write, in Markdown.
+        mode: `"replace"`, `"append"` or `"prepend"`.
     """
     try:
         from .collab import CollabError
@@ -179,7 +190,7 @@ async def update_page_content(page_id: str, markdown: str) -> dict:
 
     client = await _get_client()
     try:
-        return await _update(client, page_id, markdown)
+        return await _update(client, page_id, markdown, mode=mode)
     except CollabError as exc:
         raise RuntimeError(f"Could not edit the body: {exc}") from exc
 

@@ -86,6 +86,23 @@ def main() -> None:
     assert _body_is_empty("# Title\n\n- item") is False
     print("✓ _body_is_empty ignores the title heading when measuring a body")
 
+    params = by_name["update_page_content"].parameters
+    assert {"page_id", "markdown", "mode"} <= set(params.get("properties", {})), params
+    print("✓ update_page_content exposes the write mode")
+
+    # The mode is validated before any connection is attempted, so a typo fails
+    # immediately instead of after opening the collaboration WebSocket.
+    from docmost_mcp_oss.collab import CollabClient
+
+    collab = CollabClient("https://docmost.example.com", "token")
+    for bad in ("bogus", "", "REPLACE"):
+        try:
+            asyncio.run(collab.replace_blocks([], mode=bad))
+        except ValueError:
+            continue
+        raise AssertionError(f"mode {bad!r} was accepted")
+    print("✓ an unknown write mode is rejected up front")
+
     print("\nTool registry verified.")
 
 
