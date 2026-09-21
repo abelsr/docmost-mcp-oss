@@ -94,15 +94,15 @@ DOCMOST_URL=https://docmost.example.com
 DOCMOST_API_KEY=dm_xxx
 
 # Option B — login (works on OSS)
-DOCMOST_EMAIL=tu@email.com
-DOCMOST_PASSWORD=tu_password
+DOCMOST_EMAIL=you@example.com
+DOCMOST_PASSWORD=your-password
 ```
 
 Verify the connection:
 
 ```bash
 uv run docmost-mcp-oss --check
-# -> OK: authenticated as tu@email.com (https://docmost.example.com)
+# -> OK: authenticated as you@example.com (https://docmost.example.com)
 ```
 
 ## Usage
@@ -122,33 +122,134 @@ uv run docmost-mcp-oss --http --port 8000
 
 ## Connecting to MCP clients
 
-### Claude Desktop (`claude_desktop_config.json`)
+Every client below launches the same stdio command. The examples install from
+PyPI with `uvx`; to run from a clone instead, replace `uvx docmost-mcp-oss` with
+`uv --directory /path/to/docmost-mcp-oss run docmost-mcp-oss`.
+
+To enable `update_page_content` (editing existing page bodies), use the `yjs`
+extra — replace `docmost-mcp-oss` with `--from "docmost-mcp-oss[yjs]"
+docmost-mcp-oss`, or see the note at the end of this section.
+
+### Claude Code
+
+```bash
+claude mcp add docmost \
+  -e DOCMOST_URL=https://docmost.example.com \
+  -e DOCMOST_EMAIL=you@example.com \
+  -e DOCMOST_PASSWORD=your-password \
+  -- uvx docmost-mcp-oss
+```
+
+Equivalent JSON, in `.mcp.json` at the root of your project (or under
+`mcpServers` in `~/.claude.json` for a user-wide server):
 
 ```json
 {
   "mcpServers": {
     "docmost": {
-      "command": "uv",
-      "args": ["--directory", "/ruta/a/docmost-mcp-oss", "run", "docmost-mcp-oss"],
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["docmost-mcp-oss"],
       "env": {
         "DOCMOST_URL": "https://docmost.example.com",
-        "DOCMOST_EMAIL": "tu@email.com",
-        "DOCMOST_PASSWORD": "tu_password"
+        "DOCMOST_EMAIL": "you@example.com",
+        "DOCMOST_PASSWORD": "your-password"
       }
     }
   }
 }
 ```
 
-### Claude Code
+### Codex
+
+⚠️ Codex configures MCP servers in **TOML**, not JSON. Add this to
+`~/.codex/config.toml`:
+
+```toml
+[mcp_servers.docmost]
+command = "uvx"
+args = ["docmost-mcp-oss"]
+
+[mcp_servers.docmost.env]
+DOCMOST_URL = "https://docmost.example.com"
+DOCMOST_EMAIL = "you@example.com"
+DOCMOST_PASSWORD = "your-password"
+```
+
+Or let the CLI write it for you:
 
 ```bash
-claude mcp add docmost -- uv --directory /ruta/a/docmost-mcp-oss run docmost-mcp-oss
+codex mcp add docmost \
+  --env DOCMOST_URL=https://docmost.example.com \
+  --env DOCMOST_EMAIL=you@example.com \
+  --env DOCMOST_PASSWORD=your-password \
+  -- uvx docmost-mcp-oss
+```
+
+### phoson-cli
+
+phoson reads JSON from the file named by `mcp_config_file` in
+`~/.phoson/config.toml` (defaults to `~/.phoson/mcps.json`). Entries need an
+explicit `"enabled": true`:
+
+```json
+{
+  "mcpServers": {
+    "docmost": {
+      "command": "uvx",
+      "args": ["docmost-mcp-oss"],
+      "env": {
+        "DOCMOST_URL": "https://docmost.example.com",
+        "DOCMOST_EMAIL": "you@example.com",
+        "DOCMOST_PASSWORD": "your-password"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "docmost": {
+      "command": "uvx",
+      "args": ["docmost-mcp-oss"],
+      "env": {
+        "DOCMOST_URL": "https://docmost.example.com",
+        "DOCMOST_EMAIL": "you@example.com",
+        "DOCMOST_PASSWORD": "your-password"
+      }
+    }
+  }
+}
 ```
 
 ### Cursor (`.cursor/mcp.json`)
 
-Same as Claude Desktop, inside the `mcpServers` key.
+Same shape as Claude Desktop, inside the `mcpServers` key.
+
+### Enabling body editing
+
+`update_page_content` needs the `yjs` extra, which is optional to keep the base
+install small. Point the client at the extra instead of the bare package:
+
+| Client | Launcher to use |
+| ------ | --------------- |
+| `uvx` | `uvx --from "docmost-mcp-oss[yjs]" docmost-mcp-oss` |
+| Any `command`/`args` JSON | `"command": "uvx"`, `"args": ["--from", "docmost-mcp-oss[yjs]", "docmost-mcp-oss"]` |
+
+For example, in Claude Code:
+
+```bash
+claude mcp add docmost \
+  -e DOCMOST_URL=https://docmost.example.com \
+  -e DOCMOST_EMAIL=you@example.com \
+  -e DOCMOST_PASSWORD=your-password \
+  -- uvx --from "docmost-mcp-oss[yjs]" docmost-mcp-oss
+```
 
 ## Tests
 
