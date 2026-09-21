@@ -1,6 +1,6 @@
 [project]
 name = "docmost-mcp-oss"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server (FastMCP) for Docmost: read and edit pages, spaces and comments over the REST API and the Yjs collaboration WebSocket"
 readme = "README.md"
 license = "MIT"
