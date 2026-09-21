@@ -7,6 +7,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
+### Added
+
+- `get_workspace_overview` now reports **activity**, so an agent can decide what
+  is worth reading first instead of walking the inventory blindly. Each page
+  gains `updated_at` and `updated_by` (resolved to a member name), and the
+  result carries `recently_updated`, newest first.
+- A new `activity` argument controls the cost: `"recent"` (default) reads the
+  recent-pages window in one extra request, `"full"` additionally fetches each
+  page so every one is dated, and `"none"` skips activity entirely.
+
+### Fixed
+
+- **Page sizes above 100 were rejected by the server.** `limit` is now clamped
+  to 1..100 in the client, which fixes `list_recent_pages(limit=500)` and any
+  other call passing a larger value — Docmost answers
+  `limit must not be greater than 100`. The overview tool hit this on its first
+  run.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added
@@ -69,7 +89,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MIT license, `CONTRIBUTING.md`, and a CI workflow covering lint, offline tests
   on Python 3.10/3.12/3.13, and packaging.
 
-[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/abelsr/docmost-mcp-oss/releases/tag/v0.1.0

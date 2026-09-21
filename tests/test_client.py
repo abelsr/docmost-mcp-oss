@@ -40,6 +40,9 @@ LOGIN_MODE = "cookie"
 # Records every /pages/move call, so tests can assert on nesting.
 MOVED: list[dict] = []
 
+# Records the `limit` sent to /pages/recent, to assert it is clamped.
+RECENT_LIMITS: list = []
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
@@ -198,6 +201,43 @@ class Handler(BaseHTTPRequestHandler):
                 ]
             return self._send(
                 200, {"data": {"items": items, "meta": {}}, "success": True, "status": 200}
+            )
+
+        if path == "/api/pages/recent":
+            RECENT_LIMITS.append(body.get("limit"))
+            return self._send(
+                200,
+                {
+                    "data": {
+                        "items": [
+                            {
+                                "id": PAGE,
+                                "title": "Conventions",
+                                "updatedAt": "2026-09-21T05:00:00.000Z",
+                                "lastUpdatedById": "u-1",
+                                "space": {"id": SPACE, "name": "Development"},
+                            }
+                        ],
+                        "meta": {},
+                    },
+                    "success": True,
+                    "status": 200,
+                },
+            )
+
+        if path == "/api/workspace/members":
+            return self._send(
+                200,
+                {
+                    "data": {
+                        "items": [
+                            {"id": "u-1", "name": "Ada Lovelace", "email": "ada@example.com"}
+                        ],
+                        "meta": {},
+                    },
+                    "success": True,
+                    "status": 200,
+                },
             )
 
         if path == "/api/pages/move":
@@ -390,6 +430,20 @@ async def run_tests(base_url: str) -> None:
         assert MOVED[-1]["position"] == "a0003", MOVED  # keeps its own position
         assert page["parentPageId"] == PAGE, page
         print("✓ create_page nests content pages via /pages/move (import ignores the parent)")
+
+        # --- 8e. limits above 100 are clamped; Docmost rejects them outright ---
+        RECENT_LIMITS.clear()
+        await dm.list_recent_pages(limit=500)
+        await dm.list_recent_pages(limit=0)
+        assert RECENT_LIMITS == [100, 1], RECENT_LIMITS
+
+        # --- 8f. the recent window carries what the overview needs to annotate ---
+        recent = await dm.list_recent_pages(limit=10)
+        assert recent[0]["updatedAt"], recent[0]
+        assert recent[0]["lastUpdatedById"], recent[0]
+        members = await dm.list_workspace_members(limit=500)
+        assert members[0]["name"] == "Ada Lovelace", members
+        print("✓ limits are clamped to 1..100 and activity data is readable")
 
         # --- 8d. create_page without content nests directly via /pages/create ---
         MOVED.clear()

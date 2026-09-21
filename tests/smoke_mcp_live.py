@@ -73,6 +73,23 @@ async def main(write: bool) -> int:
         for space in overview["spaces"]:
             titles = [p["title"] for p in space["pages"]]
             print(f"      [{space['name']}] {space['page_count']}: {titles}")
+
+        print("\n▸ activity annotation")
+        dated = [p for s in overview["spaces"] for p in s["pages"] if p.get("updated_at")]
+        assert dated, "no page carried an updated_at; is the recent window empty?"
+        newest = max(dated, key=lambda p: p["updated_at"])
+        print(f"  ✓ {len(dated)} page(s) dated; newest: {newest['title']!r}")
+        print(f"      {newest['updated_at']} by {newest['updated_by']}")
+        assert overview["recently_updated"], overview
+        order = [p["updated_at"] for p in overview["recently_updated"]]
+        assert order == sorted(order, reverse=True), order
+        print(f"  ✓ recently_updated is newest-first ({len(order)} entries)")
+
+        print("\n▸ activity='none' skips the extra requests")
+        lean = (await client.call_tool("get_workspace_overview", {"activity": "none"})).data
+        assert "recently_updated" not in lean, lean
+        assert lean["total_pages"] == overview["total_pages"], lean
+        print("  ✓ same inventory, no activity payload")
         # The roots-only call must be a subset: the overview walks the tree.
         roots = 0
         for space in spaces:

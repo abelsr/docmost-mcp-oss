@@ -243,6 +243,7 @@ async def list_recent_pages(space_id: str | None = None, limit: int = 20) -> lis
 async def get_workspace_overview(
     space_id: str | None = None,
     max_pages: int = 500,
+    activity: str = "recent",
 ) -> dict:
     """**Start here.** Lists everything in the workspace: every space and every page.
 
@@ -254,11 +255,24 @@ async def get_workspace_overview(
     Each page carries `id`, `slug_id`, `title`, `parent_page_id` and `depth`,
     which is enough to rebuild the tree or to list everything flat.
 
+    With an `activity` level above `"none"` each page also carries `updated_at`
+    and `updated_by`, and the result includes `recently_updated`: the most
+    recently touched pages, newest first. Use it to decide what is worth reading
+    first instead of walking the inventory blindly.
+
     Args:
         space_id: UUID of a single space to limit the listing (optional).
             Without it, every space the user can access is included.
         max_pages: Safety cap on the total number of pages returned.
+        activity: How much activity data to gather:
+            `"recent"` (default) reads the recent-pages window, so pages touched
+            recently get dates; `"full"` additionally fetches each page to date
+            all of them, which costs one request per page and is slow on large
+            workspaces; `"none"` skips activity entirely.
     """
+    if activity not in ("none", "recent", "full"):
+        raise ValueError("activity must be 'none', 'recent' or 'full'")
+
     client = await _get_client()
     spaces = [await client.get_space(space_id)] if space_id else await client.list_spaces(limit=100)
 
@@ -281,12 +295,65 @@ async def get_workspace_overview(
         if remaining <= 0:
             break
 
-    return {
+    result: dict = {
         "total_pages": sum(s["page_count"] for s in described),
         "total_spaces": len(described),
         "truncated": remaining <= 0,
         "spaces": described,
     }
+    if activity == "none":
+        return result
+
+    # `/pages/sidebar-pages`, which the tree walk uses, carries no dates. The
+    # recent window is a single request and covers the pages most likely to
+    # matter; `full` tops it up with a per-page lookup for everything else.
+    known: dict[str, dict] = {
+        page["id"]: page
+        for page in await client.list_recent_pages(limit=max(1, max_pages))
+        if page.get("id")
+    }
+    if activity == "full":
+        for space in described:
+            for page in space["pages"]:
+                if page["id"] in known:
+                    continue
+                detail = await client.request("/pages/info", {"pageId": page["id"]})
+                if isinstance(detail, dict):
+                    known[page["id"]] = detail
+
+    names = {
+        member["id"]: member.get("name") or member.get("email") or member["id"]
+        for member in await client.list_workspace_members(limit=200)
+        if member.get("id")
+    }
+
+    def annotate(page: dict) -> dict:
+        detail = known.get(page["id"], {})
+        updated_by = detail.get("lastUpdatedById")
+        return {
+            **page,
+            "updated_at": detail.get("updatedAt"),
+            "updated_by": names.get(updated_by) if updated_by else None,
+        }
+
+    for space in described:
+        space["pages"] = [annotate(page) for page in space["pages"]]
+
+    recently = sorted(known.values(), key=lambda p: p.get("updatedAt") or "", reverse=True)
+    result["activity"] = activity
+    result["recently_updated"] = [
+        {
+            "id": page.get("id"),
+            "title": page.get("title"),
+            "space": (page.get("space") or {}).get("name"),
+            "updated_at": page.get("updatedAt"),
+            "updated_by": names.get(page.get("lastUpdatedById"))
+            if page.get("lastUpdatedById")
+            else None,
+        }
+        for page in recently[:25]
+    ]
+    return result
 
 
 @mcp.tool

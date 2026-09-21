@@ -190,14 +190,14 @@ class DocmostClient:
         return await self.request("/users/me")
 
     async def list_workspace_members(self, *, limit: int = 50) -> list[dict]:
-        raw = await self.request("/workspace/members", {"limit": limit})
+        raw = await self.request("/workspace/members", {"limit": _clamp_limit(limit)})
         return _items(raw)
 
     # ------------------------------------------------------------------ #
     # Spaces
     # ------------------------------------------------------------------ #
     async def list_spaces(self, *, limit: int = 50) -> list[dict]:
-        return _items(await self.request("/spaces", {"limit": limit}))
+        return _items(await self.request("/spaces", {"limit": _clamp_limit(limit)}))
 
     async def get_space(self, space_id: str) -> Any:
         return await self.request("/spaces/info", {"spaceId": space_id})
@@ -280,7 +280,7 @@ class DocmostClient:
         title_only: bool | None = None,
         limit: int = 20,
     ) -> list[dict]:
-        body: dict[str, Any] = {"query": query, "spaceId": space_id, "limit": limit}
+        body: dict[str, Any] = {"query": query, "spaceId": space_id, "limit": _clamp_limit(limit)}
         if title_only is not None:
             body["titleOnly"] = title_only
         return _items(await self.request("/search", body))
@@ -474,7 +474,7 @@ class DocmostClient:
     async def list_recent_pages(
         self, *, space_id: str | None = None, limit: int = 20
     ) -> list[dict]:
-        body: dict[str, Any] = {"limit": limit}
+        body: dict[str, Any] = {"limit": _clamp_limit(limit)}
         if space_id:
             body["spaceId"] = space_id
         return _items(await self.request("/pages/recent", body))
@@ -497,7 +497,7 @@ class DocmostClient:
         if not space_id:
             raise ValueError("Provide space_id (or page_id)")
 
-        body: dict[str, Any] = {"spaceId": space_id, "limit": limit}
+        body: dict[str, Any] = {"spaceId": space_id, "limit": _clamp_limit(limit)}
         if page_id:
             body["pageId"] = page_id
         return _items(await self.request("/pages/sidebar-pages", body))
@@ -574,7 +574,9 @@ class DocmostClient:
     # Comments
     # ------------------------------------------------------------------ #
     async def get_comments(self, page_id: str, *, limit: int = 50) -> list[dict]:
-        return _items(await self.request("/comments", {"pageId": page_id, "limit": limit}))
+        return _items(
+            await self.request("/comments", {"pageId": page_id, "limit": _clamp_limit(limit)})
+        )
 
     async def create_comment(
         self,
@@ -604,6 +606,15 @@ class DocmostClient:
 # ---------------------------------------------------------------------- #
 # Utilities
 # ---------------------------------------------------------------------- #
+#: Docmost rejects `limit > 100` on its list endpoints.
+MAX_LIMIT = 100
+
+
+def _clamp_limit(limit: int, *, maximum: int = MAX_LIMIT) -> int:
+    """Keeps a page size inside the range Docmost accepts."""
+    return max(1, min(int(limit), maximum))
+
+
 def _items(raw: Any) -> list[dict]:
     """Lists return `{items: [...]}` in some builds and `[...]` in others."""
     if isinstance(raw, list):
