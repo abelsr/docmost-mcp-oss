@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
+### Added
+
+- `get_workspace_overview` returns a **`summary`**: counts per space, tree shape
+  (roots, containers, leaves, max depth), date range and recency buckets
+  (last 7/30 days), pages never edited after creation, top editors and any
+  orphaned pages (those whose parent is not part of the tree). Every figure comes
+  from data already gathered, so it costs no extra requests, and
+  `summary.date_coverage` states how much of the workspace the dates cover.
+- `check_empty` (opt-in): downloads each page to measure its body and flag the
+  empty ones. Nothing cheaper exposes page size, so it costs one request per
+  page; `summary.empty_pages` reports the result.
+
 ## [0.3.0] - 2026-09-21
 
 ### Added
@@ -89,7 +103,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MIT license, `CONTRIBUTING.md`, and a CI workflow covering lint, offline tests
   on Python 3.10/3.12/3.13, and packaging.
 
-[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.0...v0.1.1

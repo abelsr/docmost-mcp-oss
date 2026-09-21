@@ -85,6 +85,34 @@ async def main(write: bool) -> int:
         assert order == sorted(order, reverse=True), order
         print(f"  ✓ recently_updated is newest-first ({len(order)} entries)")
 
+        print("\n▸ summary")
+        summary = overview["summary"]
+        for key in ("spaces", "pages", "roots", "leaves", "max_depth", "date_coverage"):
+            assert key in summary, (key, summary)
+        assert summary["pages"] == overview["total_pages"], summary
+        assert summary["roots"] + summary["containers"] >= summary["roots"], summary
+        print(
+            f"  ✓ {summary['pages']} page(s) in {summary['spaces']} space(s), "
+            f"max depth {summary['max_depth']}, coverage: {summary['date_coverage']}"
+        )
+        print(
+            f"      updated last 7d: {summary['updated_last_7_days']}, "
+            f"never edited: {summary['never_edited']}, "
+            f"orphaned: {len(summary['orphaned_pages'])}"
+        )
+        assert summary["top_editors"], summary
+        print(f"  ✓ top editors: {[e['name'] for e in summary['top_editors']]}")
+
+        print("\n▸ check_empty measures page bodies")
+        checked = (await client.call_tool("get_workspace_overview", {"check_empty": True})).data
+        measured = [p for s in checked["spaces"] for p in s["pages"] if "content_chars" in p]
+        assert measured, "no page was measured"
+        assert all(p["content_chars"] > 0 for p in measured), measured
+        assert checked["summary"]["empty_pages"] is not None, checked["summary"]
+        print(
+            f"  ✓ measured {len(measured)} page(s); empty: {len(checked['summary']['empty_pages'])}"
+        )
+
         print("\n▸ activity='none' skips the extra requests")
         lean = (await client.call_tool("get_workspace_overview", {"activity": "none"})).data
         assert "recently_updated" not in lean, lean

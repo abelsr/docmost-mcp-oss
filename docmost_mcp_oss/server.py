@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 from fastmcp import FastMCP
 
@@ -244,6 +245,7 @@ async def get_workspace_overview(
     space_id: str | None = None,
     max_pages: int = 500,
     activity: str = "recent",
+    check_empty: bool = False,
 ) -> dict:
     """**Start here.** Lists everything in the workspace: every space and every page.
 
@@ -260,6 +262,12 @@ async def get_workspace_overview(
     recently touched pages, newest first. Use it to decide what is worth reading
     first instead of walking the inventory blindly.
 
+    It also returns a `summary` with counts per space, tree shape (roots,
+    containers, leaves, max depth), date ranges and recency buckets, pages never
+    edited after creation, top editors and any orphaned pages. Every figure comes
+    from data already gathered, so it costs nothing extra; `summary.date_coverage`
+    states how much of the workspace the date-based numbers actually cover.
+
     Args:
         space_id: UUID of a single space to limit the listing (optional).
             Without it, every space the user can access is included.
@@ -269,6 +277,9 @@ async def get_workspace_overview(
             recently get dates; `"full"` additionally fetches each page to date
             all of them, which costs one request per page and is slow on large
             workspaces; `"none"` skips activity entirely.
+        check_empty: When True, downloads each page to measure its body and flag
+            the empty ones. Nothing cheaper exposes page size, so this costs one
+            request per page — leave it off unless you specifically need it.
     """
     if activity not in ("none", "recent", "full"):
         raise ValueError("activity must be 'none', 'recent' or 'full'")
@@ -339,6 +350,18 @@ async def get_workspace_overview(
     for space in described:
         space["pages"] = [annotate(page) for page in space["pages"]]
 
+    if check_empty:
+        # One export per page: the metadata endpoints never expose the body.
+        for space in described:
+            for page in space["pages"]:
+                try:
+                    exported = await client.export_page(page["id"], format="markdown")
+                except DocmostError:
+                    continue
+                body = exported.get("content") or ""
+                page["content_chars"] = len(body)
+                page["empty"] = _body_is_empty(body)
+
     recently = sorted(known.values(), key=lambda p: p.get("updatedAt") or "", reverse=True)
     result["activity"] = activity
     result["recently_updated"] = [
@@ -353,7 +376,101 @@ async def get_workspace_overview(
         }
         for page in recently[:25]
     ]
+    result["summary"] = _summarize(described, known, activity)
     return result
+
+
+def _body_is_empty(markdown: str) -> bool:
+    """True when a page has no body.
+
+    An exported page always renders its title as a leading `# ...` heading, so
+    that line is dropped before deciding whether anything is left.
+    """
+    lines = markdown.strip().splitlines()
+    if lines and lines[0].lstrip().startswith("# "):
+        lines = lines[1:]
+    return not "\n".join(lines).strip()
+
+
+def _parse_ts(value: str | None):
+    """Parses an ISO timestamp; Python 3.10's fromisoformat rejects a trailing Z."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _summarize(described: list[dict], known: dict[str, dict], activity: str) -> dict:
+    """Executive summary computed from metadata only.
+
+    Every figure comes from what the tree walk and the activity lookups already
+    returned, so this costs no extra requests. `date_coverage` states how much
+    of the workspace the date-based numbers actually cover, because with
+    `activity="recent"` only the recent window carries timestamps.
+    """
+    pages = [page for space in described for page in space["pages"]]
+    ids = {page["id"] for page in pages}
+
+    dated = [page for page in pages if page.get("updated_at")]
+    stamps = sorted(s for s in (_parse_ts(p["updated_at"]) for p in dated) if s)
+    now = datetime.now(timezone.utc)
+
+    def within(days: int) -> int:
+        cutoff = now - timedelta(days=days)
+        return sum(1 for s in stamps if s >= cutoff)
+
+    # A page whose parent is not part of the tree is unreachable from the roots.
+    orphaned = [
+        {"id": p["id"], "title": p["title"], "parent_page_id": p["parent_page_id"]}
+        for p in pages
+        if p.get("parent_page_id") and p["parent_page_id"] not in ids
+    ]
+
+    # createdAt is only available through the activity lookups.
+    never_edited = 0
+    for page in pages:
+        detail = known.get(page["id"])
+        if detail and detail.get("createdAt") and detail.get("updatedAt"):
+            if detail["createdAt"] == detail["updatedAt"]:
+                never_edited += 1
+
+    editors: dict[str, int] = {}
+    for page in pages:
+        if page.get("updated_by"):
+            editors[page["updated_by"]] = editors.get(page["updated_by"], 0) + 1
+
+    return {
+        "spaces": len(described),
+        "pages": len(pages),
+        "by_space": [{"name": s["name"], "pages": s["page_count"]} for s in described],
+        "roots": sum(1 for p in pages if p["depth"] == 0),
+        "containers": sum(1 for p in pages if p["has_children"]),
+        "leaves": sum(1 for p in pages if not p["has_children"]),
+        "max_depth": max((p["depth"] for p in pages), default=0),
+        "dated_pages": len(dated),
+        "date_coverage": ("every page" if activity == "full" else "recent window only"),
+        "oldest_updated_at": stamps[0].isoformat() if stamps else None,
+        "newest_updated_at": stamps[-1].isoformat() if stamps else None,
+        "span_days": (stamps[-1] - stamps[0]).days if len(stamps) > 1 else 0,
+        "updated_last_7_days": within(7),
+        "updated_last_30_days": within(30),
+        "never_edited": never_edited,
+        "orphaned_pages": orphaned,
+        "empty_pages": [
+            {"id": p["id"], "title": p["title"], "space": space_name}
+            for space_name, p in (
+                (s["name"], page) for s in described for page in s["pages"] if page.get("empty")
+            )
+        ]
+        if any("empty" in page for s in described for page in s["pages"])
+        else None,
+        "top_editors": [
+            {"name": name, "pages": count}
+            for name, count in sorted(editors.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        ],
+    }
 
 
 @mcp.tool

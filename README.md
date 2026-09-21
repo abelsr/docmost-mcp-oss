@@ -36,7 +36,10 @@ Three tools stand out:
 - **`get_workspace_overview`** answers *"what is in my Docmost?"* in a single call:
   every space and every page, walking the whole tree, plus who last touched each
   page and a `recently_updated` ranking so an agent knows what to read first.
-  The `activity` argument trades cost for detail (`"recent"`, `"full"`, `"none"`).
+  It also returns a `summary`: counts per space, tree shape, date ranges, recency
+  buckets, pages never edited, top editors and orphaned pages. The `activity`
+  argument trades cost for detail (`"recent"`, `"full"`, `"none"`), and the
+  optional `check_empty` measures page bodies to find the empty ones.
 - **`get_page`** returns **metadata and content** in Markdown (it combines `/pages/info` with `/pages/export`, because the former **does not** return the body).
 - **`update_page_content`** **replaces the body of an existing page**. The REST API can't do this: it writes directly to the Yjs document over the collaboration WebSocket. Requires the `yjs` extra and takes ~13 s (Docmost persists with a 10 s *debounce*).
 

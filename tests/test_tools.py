@@ -72,6 +72,20 @@ def main() -> None:
     assert {"page_id", "markdown"} <= set(params.get("properties", {})), params
     print("✓ update_page_content accepts (page_id, markdown)")
 
+    overview = set(by_name["get_workspace_overview"].parameters.get("properties", {}))
+    assert {"space_id", "max_pages", "activity", "check_empty"} <= overview, overview
+    print("✓ get_workspace_overview exposes the activity and check_empty knobs")
+
+    # A page with no body still exports its title as a leading H1.
+    from docmost_mcp_oss.server import _body_is_empty
+
+    assert _body_is_empty("# Title only") is True
+    assert _body_is_empty("# Title\n\n") is True
+    assert _body_is_empty("") is True
+    assert _body_is_empty("# Title\n\nSome text.") is False
+    assert _body_is_empty("# Title\n\n- item") is False
+    print("✓ _body_is_empty ignores the title heading when measuring a body")
+
     print("\nTool registry verified.")
 
 
