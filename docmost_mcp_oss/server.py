@@ -209,23 +209,39 @@ async def restore_page(page_id: str) -> dict:
 @mcp.tool
 async def move_page(
     page_id: str,
-    position: str,
     parent_page_id: str | None = None,
+    after: str | None = None,
+    before: str | None = None,
 ) -> dict:
-    """Moves or reorders a page within its space.
+    """Moves or reorders a page. Say where it should go; the position is computed.
 
-    Docmost orders pages with *fractional indexing*: `position` is a 5- to
-    12-character string compared lexicographically (e.g. 'a0000' comes before
-    'a0001'). To place a page between two existing ones, use an intermediate
-    value.
+    Three ways to place a page, in order of preference:
+
+    - **Nest it**: pass `parent_page_id` and the page becomes a child of that
+      page (appended at the end of its children by default).
+    - **Reorder it**: pass `after` or `before` with the id of a sibling to sit
+      next to.
+    - Neither: the page is appended at the end of its current parent.
+
+    You never have to invent a position. Docmost orders pages with *fractional
+    indexing* — a base62 string it compares lexicographically, which must be
+    5-12 characters — and that is fiddly to get right by hand. This tool reads
+    the neighbouring positions and generates a valid one in between.
 
     Args:
         page_id: UUID or slugId of the page to move.
-        position: 5-12 character string with the new position.
-        parent_page_id: New parent; `None` to leave it at the root.
+        parent_page_id: UUID or slugId of the new parent. Omit it to leave the
+            page where it is.
+        after: UUID or slugId of the sibling this page should follow.
+        before: UUID or slugId of the sibling this page should precede.
     """
     client = await _get_client()
-    return await client.move_page(page_id, position, parent_page_id=parent_page_id)
+    return await client.move_page(
+        page_id,
+        parent_page_id=parent_page_id,
+        after=after,
+        before=before,
+    )
 
 
 @mcp.tool

@@ -31,7 +31,7 @@ install it as `docmost-mcp-oss`.
 | Comments | `get_comments`, `create_comment`, `update_comment`                                                                                                                                                                                           |
 | User     | `get_current_user`, `list_workspace_members`                                                                                                                                                                                                   |
 
-Three tools stand out:
+Four things stand out:
 
 - **`get_workspace_overview`** answers *"what is in my Docmost?"* in a single call:
   every space and every page, walking the whole tree, plus who last touched each
@@ -41,6 +41,9 @@ Three tools stand out:
   argument trades cost for detail (`"recent"`, `"full"`, `"none"`), and the
   optional `check_empty` measures page bodies to find the empty ones.
 - **`get_page`** returns **metadata and content** in Markdown (it combines `/pages/info` with `/pages/export`, because the former **does not** return the body).
+- **`move_page`** takes a destination, not a position: nest it with
+  `parent_page_id`, or sit it next to a sibling with `after`/`before`. Docmost's
+  position strings are generated for you.
 - **`update_page_content`** **replaces the body of an existing page**. The REST API can't do this: it writes directly to the Yjs document over the collaboration WebSocket. Requires the `yjs` extra and takes ~13 s (Docmost persists with a 10 s *debounce*).
 
 > `list_child_pages` lists **one level only** (the direct children of a space or a
@@ -308,6 +311,7 @@ docmost-mcp-oss/
 │   ├── __init__.py
 │   ├── client.py       # async HTTP client for the Docmost REST API
 │   ├── collab.py       # Yjs WebSocket: read/write page bodies
+│   ├── position.py     # fractional indexing within Docmost's 5-12 chars
 │   └── server.py       # FastMCP server + tools
 ├── docs/
 │   ├── DOCMOST-API.md  # API research (OSS + real instance)

@@ -7,6 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
+### Added
+
+- **`move_page` no longer asks for a position.** Docmost orders pages by a
+  base62 string that must be 5-12 characters and is compared lexicographically,
+  which is unreasonable to hand to a caller. The tool now takes a destination:
+  `parent_page_id` to nest, `after`/`before` to sit next to a sibling, or
+  nothing to append at the end. The position is read from the neighbours and
+  generated in between.
+- `docmost_mcp_oss/position.py`, a fractional-indexing generator that works
+  inside Docmost's length constraint, with property tests in
+  `tests/test_positions.py` covering 3000 intervals between positions a real
+  instance produced.
+
+### Fixed
+
+- `move_page` treated a page as its own sibling when the caller passed a
+  `slugId`, because the sibling list returns UUIDs. It now matches either, so
+  "move this page before itself" is reported instead of silently narrowing the
+  gap until no position fits.
+
 ## [0.4.0] - 2026-09-21
 
 ### Added
@@ -103,7 +125,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MIT license, `CONTRIBUTING.md`, and a CI workflow covering lint, offline tests
   on Python 3.10/3.12/3.13, and packaging.
 
-[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abelsr/docmost-mcp-oss/compare/v0.1.1...v0.2.0

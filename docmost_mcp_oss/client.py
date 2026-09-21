@@ -26,6 +26,8 @@ from typing import Any
 
 import httpx
 
+from .position import MAX_LENGTH, PositionError, key_between
+
 API_PREFIX = "/api"
 
 #: Formats accepted by `/pages/export` (validated by the server).
@@ -463,13 +465,104 @@ class DocmostClient:
         return await self.request("/pages/restore", {"pageId": page_id})
 
     async def move_page(
-        self, page_id: str, position: str, *, parent_page_id: str | None = None
+        self,
+        page_id: str,
+        position: str | None = None,
+        *,
+        parent_page_id: str | None = None,
+        after: str | None = None,
+        before: str | None = None,
     ) -> Any:
-        """`position` must be between 5 and 12 characters (fractional indexing)."""
+        """Moves or reorders a page.
+
+        The position is a base62 string Docmost compares lexicographically, and
+        it must be 5-12 characters. Rather than making the caller invent one,
+        give it a destination:
+
+        * ``parent_page_id`` nests the page under that parent (or pass ``None``
+          explicitly to send it back to the root).
+        * ``after``/``before`` place it relative to a sibling page id.
+        * Neither of those appends it at the end of the target's children.
+
+        ``position`` is the manual escape hatch: passing it skips all of the
+        above and sends the value as-is.
+        """
+        if position is None:
+            position = await self._position_for(
+                page_id, parent_page_id=parent_page_id, after=after, before=before
+            )
+
         body: dict[str, Any] = {"pageId": page_id, "position": position}
         if parent_page_id is not None:
             body["parentPageId"] = parent_page_id
         return await self.request("/pages/move", body)
+
+    async def _position_for(
+        self,
+        page_id: str,
+        *,
+        parent_page_id: str | None,
+        after: str | None,
+        before: str | None,
+    ) -> str:
+        """Computes a position that lands the page where the caller asked."""
+        if after and before:
+            raise ValueError("Pass either `after` or `before`, not both")
+
+        page = await self.request("/pages/info", {"pageId": page_id})
+        if not isinstance(page, dict):
+            raise DocmostError(None, f"Page {page_id} not found")
+
+        space_id = page.get("spaceId")
+        # `parent_page_id=None` means "the root", which is also the default when
+        # the caller did not ask for a specific parent.
+        target_parent = parent_page_id if parent_page_id is not None else page.get("parentPageId")
+
+        siblings = await self.list_child_pages(space_id=space_id, page_id=target_parent, limit=100)
+
+        def is_self(sibling: dict) -> bool:
+            # Callers identify pages by UUID or slugId; the list always returns
+            # the UUID, so comparing only the caller's value silently matches
+            # nothing and the page ends up as its own neighbour.
+            return page_id in (sibling.get("id"), sibling.get("slugId"))
+
+        ordered = sorted(
+            (sibling for sibling in siblings if not is_self(sibling) and sibling.get("position")),
+            key=lambda sibling: sibling["position"],
+        )
+        positions = [sibling["position"] for sibling in ordered]
+
+        def index_of(page_ref: str) -> int:
+            for index, sibling in enumerate(ordered):
+                if sibling.get("id") == page_ref or sibling.get("slugId") == page_ref:
+                    return index
+            raise DocmostError(
+                None,
+                f"{page_ref} is not a sibling of {page_id} in the target parent; "
+                "cannot place the page relative to it",
+            )
+
+        if before:
+            index = index_of(before)
+            lower = positions[index - 1] if index > 0 else None
+            upper = positions[index]
+        elif after:
+            index = index_of(after)
+            lower = positions[index]
+            upper = positions[index + 1] if index + 1 < len(positions) else None
+        else:
+            lower = positions[-1] if positions else None
+            upper = None
+
+        try:
+            return key_between(lower, upper)
+        except PositionError as exc:
+            raise DocmostError(
+                None,
+                f"Cannot place the page there: {exc}. Docmost positions cap at "
+                f"{MAX_LENGTH} characters, so a slot can only be subdivided so "
+                "many times. Spread the surrounding pages out, or use the web UI.",
+            ) from exc
 
     async def list_recent_pages(
         self, *, space_id: str | None = None, limit: int = 20
