@@ -83,7 +83,40 @@ Short imperative subject lines, English, in the style of
 `Add page history tool` or `Fix spaceId requirement in search`. Explain the
 *why* in the body when the change is not obvious.
 
+Keep [CHANGELOG.md](https://github.com/abelsr/docmost-mcp-oss/blob/main/CHANGELOG.md)
+up to date under `## [Unreleased]` as you go, not at release time. It follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/): group entries under
+`Added`, `Changed`, `Fixed`, `Removed`.
+
+## Releasing
+
+Releases are driven by tags, and the workflow refuses to publish if anything is
+inconsistent — so the steps are mechanical:
+
+1. Move the `## [Unreleased]` entries in `CHANGELOG.md` into a new
+   `## [X.Y.Z] - YYYY-MM-DD` section, and update the comparison links at the
+   bottom of the file.
+2. Set the same `X.Y.Z` in the `version` field of `pyproject.toml`.
+3. Run `uv sync` (this updates `uv.lock`) and commit both files.
+4. Tag and push:
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin main vX.Y.Z
+   ```
+
+The [release workflow](.github/workflows/release.yml) then:
+
+- verifies the tag matches `version` in `pyproject.toml`,
+- verifies `CHANGELOG.md` has a `## [X.Y.Z]` section,
+- builds the sdist and wheel,
+- publishes to PyPI through Trusted Publishing (no API token),
+- creates a GitHub Release using that changelog section as its notes.
+
+There is no `workflow_dispatch` on purpose: a release is always a tag. To retry a
+failed run, use *Re-run jobs* on the run itself.
+
 ## License
 
 By contributing you agree that your contributions are licensed under the
-[MIT License](LICENSE).
+[MIT License](https://github.com/abelsr/docmost-mcp-oss/blob/main/LICENSE).

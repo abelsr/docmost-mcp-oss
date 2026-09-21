@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,6 +28,16 @@ jobs:
           fi
           echo "OK: tag v$TAG matches version $VERSION"
 
+      # Guard against forgetting the changelog entry before a release.
+      - name: Check the changelog has an entry for this version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          if ! grep -q "^## \[$TAG\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$TAG]' section"
+            exit 1
+          fi
+          echo "OK: CHANGELOG.md documents $TAG"
+
       - name: Build sdist and wheel
         run: uv build
 
@@ -44,7 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      # Update this if the PyPI project name differs from the repository name.
       url: https://pypi.org/p/docmost-mcp-oss
     permissions:
       id-token: write # Trusted Publishing (OIDC): no API token needed
@@ -57,3 +65,39 @@ jobs:
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Publish the changelog section for this version as the release notes.
+      - name: Extract the release notes
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v ver="$TAG" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > NOTES.md
+          if [ ! -s NOTES.md ]; then
+            echo "::error::no release notes extracted for $TAG"
+            exit 1
+          fi
+          cat NOTES.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file NOTES.md
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file NOTES.md
+          fi

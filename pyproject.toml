@@ -30,7 +30,7 @@ dependencies = [
 Homepage = "https://github.com/abelsr/docmost-mcp-oss"
 Repository = "https://github.com/abelsr/docmost-mcp-oss"
 Issues = "https://github.com/abelsr/docmost-mcp-oss/issues"
-Changelog = "https://github.com/abelsr/docmost-mcp-oss/commits/main"
+Changelog = "https://github.com/abelsr/docmost-mcp-oss/blob/main/CHANGELOG.md"
 
 [project.scripts]
 docmost-mcp-oss = "docmost_mcp_oss.server:main"

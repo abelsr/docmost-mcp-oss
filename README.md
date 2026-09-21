@@ -307,7 +307,10 @@ docmost-mcp-oss/
 │   ├── smoke_live.py       # real instance, read-only
 │   ├── smoke_mcp_live.py   # MCP layer against a real instance
 │   └── smoke_yjs_live.py   # body editing via Yjs
-├── .github/workflows/ci.yml  # lint, tests and packaging
+├── .github/workflows/
+│   ├── ci.yml                # lint, tests and packaging
+│   └── release.yml           # tag -> build -> PyPI -> GitHub Release
+├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE                   # MIT
 ├── pyproject.toml            # metadata, dependencies and ruff config
