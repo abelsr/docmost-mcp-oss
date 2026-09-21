@@ -5,11 +5,11 @@ create and update pages, and manage spaces and comments.
 
 Local run (stdio, for Claude Desktop / Cursor)::
 
-    uv run docmost-mcp
+    uv run docmost-mcp-oss
 
 Remote run (HTTP)::
 
-    uv run docmost-mcp --http --port 8000
+    uv run docmost-mcp-oss --http --port 8000
 
 Environment variables (see .env.example): DOCMOST_URL and either DOCMOST_API_KEY
 or DOCMOST_EMAIL + DOCMOST_PASSWORD.

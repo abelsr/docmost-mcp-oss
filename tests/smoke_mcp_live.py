@@ -50,7 +50,7 @@ def load_env() -> None:
 async def main(write: bool) -> int:
     from fastmcp import Client
 
-    import docmost_mcp.server as srv
+    import docmost_mcp_oss.server as srv
 
     srv._client = None  # force a new client with the loaded environment
 
@@ -94,7 +94,7 @@ async def main(write: bool) -> int:
             return 0
 
         print("\n▸ create_page → get_page → update_page(title) → delete_page")
-        title = "docmost-mcp e2e"
+        title = "docmost-mcp-oss e2e"
         created = (
             await client.call_tool(
                 "create_page",

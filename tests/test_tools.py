@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docmost_mcp.server import mcp  # noqa: E402
+from docmost_mcp_oss.server import mcp  # noqa: E402
 
 EXPECTED_TOOLS = {
     # Pages

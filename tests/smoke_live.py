@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docmost_mcp.client import DocmostClient, DocmostError  # noqa: E402
+from docmost_mcp_oss.client import DocmostClient, DocmostError  # noqa: E402
 
 DEFAULT_CREDS = Path(__file__).resolve().parents[1] / ".docmost-creds.json"
 
@@ -160,11 +160,11 @@ async def run(creds: dict, write: bool) -> bool:
 
         if write:
             step("Writing (create with content → rename → get → delete)")
-            title = f"docmost-mcp smoke test {int(time.time())}"
+            title = f"docmost-mcp-oss smoke test {int(time.time())}"
             created = await client.create_page(
                 space["id"],
                 title=title,
-                content="Created by `docmost-mcp`.\n\n- [x] create_page\n- [x] import\n",
+                content="Created by `docmost-mcp-oss`.\n\n- [x] create_page\n- [x] import\n",
             )
             new_id = (created or {}).get("slugId") or (created or {}).get("id")
             ok(f"create_page: {title!r} → id={new_id}")

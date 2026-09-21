@@ -42,7 +42,9 @@ try:
     from pycrdt import Doc, XmlElement, XmlFragment, XmlText
     from websockets.asyncio.client import connect as ws_connect
 except ImportError as exc:  # pragma: no cover
-    raise ImportError("Yjs support requires the extras: pip install 'docmost-mcp[yjs]'") from exc
+    raise ImportError(
+        "Yjs support requires the extras: pip install 'docmost-mcp-oss[yjs]'"
+    ) from exc
 
 AUTH = 2
 SYNC = 0
@@ -318,7 +320,7 @@ async def blocks_from_markdown(client: Any, space_id: str, markdown: str) -> lis
     # Docmost uses the FIRST heading of the file as the page title and removes
     # it from the body. So that the user's Markdown arrives intact, we prepend
     # a marker heading that takes on that role.
-    payload = f"# __docmost_mcp_tmp__\n\n{markdown}"
+    payload = f"# __docmost_mcp_oss_tmp__\n\n{markdown}"
 
     response = await client._client.post(
         f"{API_PREFIX}/pages/import",

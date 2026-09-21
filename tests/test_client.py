@@ -24,7 +24,7 @@ from threading import Thread
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docmost_mcp.client import DocmostClient, DocmostError  # noqa: E402
+from docmost_mcp_oss.client import DocmostClient, DocmostError  # noqa: E402
 
 API_KEY = "test-api-key"
 JWT = "test-jwt-token"

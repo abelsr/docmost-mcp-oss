@@ -76,7 +76,7 @@ jobs:
         run: |
           python -m zipfile -l dist/*.whl > /tmp/wheel.txt
           cat /tmp/wheel.txt
-          grep -q "docmost_mcp/client.py" /tmp/wheel.txt
-          grep -q "docmost_mcp/collab.py" /tmp/wheel.txt
+          grep -q "docmost_mcp_oss/client.py" /tmp/wheel.txt
+          grep -q "docmost_mcp_oss/collab.py" /tmp/wheel.txt
           grep -q "licenses/LICENSE" /tmp/wheel.txt
           echo "OK: wheel contains the package and the LICENSE"

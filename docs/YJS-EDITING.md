@@ -5,7 +5,7 @@
 > allow modifying the body of a page that has already been created.
 >
 > **Result: it is possible**, by writing directly to the Yjs document over
-> the collaboration WebSocket. Implemented in `docmost_mcp/collab.py` and
+> the collaboration WebSocket. Implemented in `docmost_mcp_oss/collab.py` and
 > exposed as the MCP tool `update_page_content`.
 
 ## 1. The problem
@@ -153,12 +153,12 @@ Benefits: full fidelity (supports everything Docmost supports, including
 
 Important detail: Docmost uses the **first heading** of the file as the page
 title and removes it from the body. So that the user's Markdown arrives
-intact, `blocks_from_markdown` prepends a `# __docmost_mcp_tmp__` that takes
+intact, `blocks_from_markdown` prepends a `# __docmost_mcp_oss_tmp__` that takes
 that role.
 
 ## 7. Implementation
 
-`docmost_mcp/collab.py`:
+`docmost_mcp_oss/collab.py`:
 
 | Element | Purpose |
 |---|---|

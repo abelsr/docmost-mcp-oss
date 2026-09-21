@@ -404,7 +404,7 @@ wheels = [
 ]
 
 [[package]]
-name = "docmost-mcp"
+name = "docmost-mcp-oss"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

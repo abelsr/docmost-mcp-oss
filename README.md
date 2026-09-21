@@ -1,19 +1,25 @@
-# docmost-mcp
+# docmost-mcp-oss
 
-[![CI](https://github.com/abelsr/docmost-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/abelsr/docmost-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/abelsr/docmost-mcp-oss/actions/workflows/ci.yml/badge.svg)](https://github.com/abelsr/docmost-mcp-oss/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/abelsr/docmost-mcp-oss/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 An [MCP](https://modelcontextprotocol.io) server built with **FastMCP** that exposes the REST API of [Docmost](https://docmost.com) as tools for AI assistants (Claude Desktop, Claude Code, Cursor, VS Code…).
 
 Managed with **[uv](https://docs.astral.sh/uv/)**.
 
-> 📄 Full API research: [`docs/DOCMOST-API.md`](docs/DOCMOST-API.md).
+> 📄 Full API research: [`docs/DOCMOST-API.md`](https://github.com/abelsr/docmost-mcp-oss/blob/main/docs/DOCMOST-API.md).
 > Verified against a real Docmost instance (not just the documentation).
 
 ## Why a custom MCP?
 
 Docmost ships with an **official** MCP, but it requires a *Business/Enterprise* license and is enabled from *Settings → AI settings → MCP*. This project uses the **internal API** (the same one the web UI consumes), which is also available in the **self-hosted OSS** edition.
+
+**About the name:** the `-oss` suffix distinguishes this package from the unrelated
+[`docmost-mcp`](https://pypi.org/project/docmost-mcp/) already on PyPI. They are different
+projects by different authors, and they would collide if installed side by side (both used to
+ship the same import package). This one targets self-hosted Docmost and can edit page bodies;
+install it as `docmost-mcp-oss`.
 
 ## Exposed tools (20)
 
@@ -50,7 +56,7 @@ converted using Docmost's own converter, so it supports the full schema (tables,
 uv sync --extra yjs     # enables update_page_content
 ```
 
-Technical details of the protocol: [`docs/YJS-EDITING.md`](docs/YJS-EDITING.md).
+Technical details of the protocol: [`docs/YJS-EDITING.md`](https://github.com/abelsr/docmost-mcp-oss/blob/main/docs/YJS-EDITING.md).
 
 ## Installation
 
@@ -82,7 +88,7 @@ DOCMOST_PASSWORD=tu_password
 Verify the connection:
 
 ```bash
-uv run docmost-mcp --check
+uv run docmost-mcp-oss --check
 # -> OK: authenticated as tu@email.com (https://docmost.example.com)
 ```
 
@@ -91,13 +97,13 @@ uv run docmost-mcp --check
 ### stdio (recommended for local use)
 
 ```bash
-uv run docmost-mcp
+uv run docmost-mcp-oss
 ```
 
 ### HTTP (for remote access)
 
 ```bash
-uv run docmost-mcp --http --port 8000
+uv run docmost-mcp-oss --http --port 8000
 # MCP endpoint: http://127.0.0.1:8000/mcp
 ```
 
@@ -110,7 +116,7 @@ uv run docmost-mcp --http --port 8000
   "mcpServers": {
     "docmost": {
       "command": "uv",
-      "args": ["--directory", "/ruta/a/docmost-mcp", "run", "docmost-mcp"],
+      "args": ["--directory", "/ruta/a/docmost-mcp-oss", "run", "docmost-mcp-oss"],
       "env": {
         "DOCMOST_URL": "https://docmost.example.com",
         "DOCMOST_EMAIL": "tu@email.com",
@@ -124,7 +130,7 @@ uv run docmost-mcp --http --port 8000
 ### Claude Code
 
 ```bash
-claude mcp add docmost -- uv --directory /ruta/a/docmost-mcp run docmost-mcp
+claude mcp add docmost -- uv --directory /ruta/a/docmost-mcp-oss run docmost-mcp-oss
 ```
 
 ### Cursor (`.cursor/mcp.json`)
@@ -172,8 +178,8 @@ Things that are **not** obvious and that the client already handles:
 ## Structure
 
 ```
-docmost-mcp/
-├── docmost_mcp/
+docmost-mcp-oss/
+├── docmost_mcp_oss/
 │   ├── __init__.py
 │   ├── client.py       # async HTTP client for the Docmost REST API
 │   ├── collab.py       # Yjs WebSocket: read/write page bodies
@@ -197,4 +203,4 @@ docmost-mcp/
 
 ## License
 
-[MIT](LICENSE) © 2026 Abel Santillan Rodriguez
+[MIT](https://github.com/abelsr/docmost-mcp-oss/blob/main/LICENSE) © 2026 Abel Santillan Rodriguez

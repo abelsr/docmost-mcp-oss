@@ -27,8 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docmost_mcp.client import DocmostClient  # noqa: E402
-from docmost_mcp.collab import (  # noqa: E402
+from docmost_mcp_oss.client import DocmostClient  # noqa: E402
+from docmost_mcp_oss.collab import (  # noqa: E402
     CollabClient,
     blocks_from_markdown,
     blocks_to_markdown,

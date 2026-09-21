@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving `docmost-mcp`. This project is small, so
+Thanks for your interest in improving `docmost-mcp-oss`. This project is small, so
 the process is intentionally light.
 
 ## Setup
@@ -8,8 +8,8 @@ the process is intentionally light.
 The project is managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/abelsr/docmost-mcp
-cd docmost-mcp
+git clone https://github.com/abelsr/docmost-mcp-oss
+cd docmost-mcp-oss
 uv sync --extra yjs      # --extra yjs is needed for the collaboration module
 ```
 
@@ -72,8 +72,8 @@ deletes pages.
 
 ## Adding a tool
 
-1. Add the method to `docmost_mcp/client.py` (or `collab.py`).
-2. Register it in `docmost_mcp/server.py` with `@mcp.tool`, a **typed**
+1. Add the method to `docmost_mcp_oss/client.py` (or `collab.py`).
+2. Register it in `docmost_mcp_oss/server.py` with `@mcp.tool`, a **typed**
    signature, and a docstring with an `Args:` section.
 3. Add it to `EXPECTED_TOOLS` in `tests/test_tools.py`.
 
