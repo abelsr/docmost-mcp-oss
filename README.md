@@ -23,6 +23,8 @@ Docmost ships with an **official** MCP, but it requires a *Business/Enterprise* 
 | Comments | `get_comments`, `create_comment`, `update_comment`                                                                                                                                                                                                 |
 | User     | `get_current_user`, `list_workspace_members`                                                                                                                                                                                                       |
 
+Every tool declares the four MCP annotation hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), so a client knows before calling whether it is about to read, write or delete.
+
 Four things stand out:
 
 - **`get_workspace_overview`** answers *"what is in my Docmost?"* in a single call: every space and every page, walking the whole tree, plus who last touched each page and a `recently_updated` ranking so an agent knows what to read first. It also returns a `summary`: counts per space, tree shape, date ranges, recency buckets, pages never edited, top editors and orphaned pages. The `activity` argument trades cost for detail (`"recent"`, `"full"`, `"none"`), and the optional `check_empty` measures page bodies to find the empty ones.

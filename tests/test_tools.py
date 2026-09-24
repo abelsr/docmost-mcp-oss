@@ -1,8 +1,8 @@
 """Offline check of the MCP tool registry.
 
 Verifies that the server exposes the expected tools, that every tool has a
-description and a typed output schema, and that nothing requires network
-access. Useful as a fast regression check and in CI.
+description, a typed output schema and the four annotation hints, and that
+nothing requires network access. Useful as a fast regression check and in CI.
 
     uv run python tests/test_tools.py
 """
@@ -67,6 +67,51 @@ def main() -> None:
     untyped = [name for name, tool in by_name.items() if not tool.output_schema]
     assert not untyped, f"tools without an output schema: {untyped}"
     print("✓ every tool declares a typed output schema")
+
+    # The four hints are what a client reads to decide whether it may call a
+    # tool without asking, and a directory such as OpenAI's rejects a tool that
+    # leaves any of them out. All four must be declared, and all four booleans.
+    HINTS = ("readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint")
+    incomplete = {}
+    for name, tool in by_name.items():
+        declared = tool.annotations.model_dump(by_alias=True) if tool.annotations else {}
+        missing = [hint for hint in HINTS if not isinstance(declared.get(hint), bool)]
+        if missing:
+            incomplete[name] = missing
+    assert not incomplete, f"tools with missing annotation hints: {incomplete}"
+    print("✓ every tool declares the four annotation hints")
+
+    # The hints have to agree with the tool's name and with each other: a read
+    # is never a writer, a read-only tool is neither destructive nor
+    # non-idempotent, and every tool here reaches a remote instance.
+    mislabelled = set()
+    for name, tool in by_name.items():
+        hints = tool.annotations
+        if name.startswith(("get_", "list_", "search_")) and not hints.read_only_hint:
+            mislabelled.add(name)
+        if hints.read_only_hint and (hints.destructive_hint or not hints.idempotent_hint):
+            mislabelled.add(name)
+        if not hints.open_world_hint:
+            mislabelled.add(name)
+    assert not mislabelled, f"inconsistent annotation hints: {sorted(mislabelled)}"
+    print("✓ read-only tools are announced as read-only")
+
+    # The three that are easy to get wrong when a decorator is copied around.
+    assert by_name["delete_page"].annotations.destructive_hint
+    assert not by_name["create_page"].annotations.idempotent_hint
+    assert by_name["update_page_content"].annotations.destructive_hint
+    assert not by_name["update_page_content"].annotations.idempotent_hint
+    print("✓ the write hints match what those tools do")
+
+    # And the helper refuses a combination that cannot be true.
+    from docmost_mcp_oss.server import _hints
+
+    try:
+        _hints(read_only=True, destructive=True)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a read-only tool was allowed to be destructive")
 
     params = by_name["update_page_content"].parameters
     assert {"page_id", "markdown"} <= set(params.get("properties", {})), params
