@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Every tool declares the four MCP **annotation hints** (`readOnlyHint`,
+  `destructiveHint`, `idempotentHint`, `openWorldHint`). They are what tells a
+  client what it is about to call — a read can be auto-approved, a destructive
+  write confirmed first — and directories such as OpenAI's reject a tool that
+  leaves any of them out. `tests/test_tools.py` fails if a tool ever omits one.
+
 ## [0.6.0] - 2026-09-21
 
 ### Added
