@@ -68,9 +68,48 @@ def _load_dotenv() -> None:
 
 
 # ====================================================================== #
+# Tool annotations
+# ====================================================================== #
+# MCP hints, not guarantees: a client uses them to decide what it may call
+# without asking (a read-only tool is safe to auto-approve, a destructive one
+# is not), and directories such as OpenAI's reject a tool that leaves any of
+# the four out. Every tool here talks to a remote Docmost, so `openWorldHint`
+# is always true.
+
+
+def _hints(
+    *,
+    read_only: bool = False,
+    destructive: bool = False,
+    idempotent: bool = False,
+) -> dict[str, bool]:
+    """Builds the annotation hints of a tool.
+
+    Args:
+        read_only: the tool does not modify the workspace.
+        destructive: it can overwrite or remove existing data. Only meaningful
+            when `read_only` is false; a tool that only adds data is not
+            destructive.
+        idempotent: calling it again with the same arguments leaves the
+            workspace in the same state.
+
+    Returns:
+        The four hints the MCP specification defines, all of them booleans.
+    """
+    if read_only and (destructive or not idempotent):
+        raise ValueError("a read-only tool is neither destructive nor non-idempotent")
+    return {
+        "readOnlyHint": read_only,
+        "destructiveHint": destructive,
+        "idempotentHint": idempotent,
+        "openWorldHint": True,
+    }
+
+
+# ====================================================================== #
 # Tools — Pages
 # ====================================================================== #
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def search_pages(
     query: str,
     space_id: str | None = None,
@@ -91,7 +130,7 @@ async def search_pages(
     return await client.search_pages(query, space_id=space_id, limit=limit)
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_page(page_id: str, format: str = "markdown") -> dict:
     """Fetches a page: metadata **and** content.
 
@@ -106,7 +145,8 @@ async def get_page(page_id: str, format: str = "markdown") -> dict:
     return await client.get_page(page_id, format=format)
 
 
-@mcp.tool
+# Creating is additive, and a second call makes a second page.
+@mcp.tool(annotations=_hints())
 async def create_page(
     space_id: str,
     title: str | None = None,
@@ -138,7 +178,8 @@ async def create_page(
     )
 
 
-@mcp.tool
+# Renaming overwrites the previous title, and repeating it changes nothing.
+@mcp.tool(annotations=_hints(destructive=True, idempotent=True))
 async def update_page(page_id: str, title: str | None = None) -> dict:
     """Renames a page.
 
@@ -152,7 +193,8 @@ async def update_page(page_id: str, title: str | None = None) -> dict:
     return await client.update_page(page_id, title=title)
 
 
-@mcp.tool
+# "replace" overwrites the body, and append/prepend make a retry unsafe.
+@mcp.tool(annotations=_hints(destructive=True))
 async def update_page_content(
     page_id: str,
     markdown: str,
@@ -195,7 +237,8 @@ async def update_page_content(
         raise RuntimeError(f"Could not edit the body: {exc}") from exc
 
 
-@mcp.tool
+# It takes the page out of the workspace (recoverable from the trash).
+@mcp.tool(annotations=_hints(destructive=True, idempotent=True))
 async def delete_page(page_id: str) -> dict:
     """Moves a page to the trash (recoverable with `restore_page`).
 
@@ -206,7 +249,8 @@ async def delete_page(page_id: str) -> dict:
     return await client.delete_page(page_id)
 
 
-@mcp.tool
+# It puts the page back; nothing is overwritten.
+@mcp.tool(annotations=_hints(idempotent=True))
 async def restore_page(page_id: str) -> dict:
     """Restores a page that is in the trash.
 
@@ -217,7 +261,8 @@ async def restore_page(page_id: str) -> dict:
     return await client.restore_page(page_id)
 
 
-@mcp.tool
+# Reordering moves data around, it does not lose it.
+@mcp.tool(annotations=_hints(idempotent=True))
 async def move_page(
     page_id: str,
     parent_page_id: str | None = None,
@@ -255,7 +300,7 @@ async def move_page(
     )
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def list_recent_pages(space_id: str | None = None, limit: int = 20) -> list[dict]:
     """Lists recently updated pages.
 
@@ -267,7 +312,7 @@ async def list_recent_pages(space_id: str | None = None, limit: int = 20) -> lis
     return await client.list_recent_pages(space_id=space_id, limit=limit)
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_workspace_overview(
     space_id: str | None = None,
     max_pages: int = 500,
@@ -500,7 +545,7 @@ def _summarize(described: list[dict], known: dict[str, dict], activity: str) -> 
     }
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def list_child_pages(
     space_id: str | None = None,
     page_id: str | None = None,
@@ -525,7 +570,7 @@ async def list_child_pages(
     return {"items": await client.list_child_pages(space_id=space_id, page_id=page_id, limit=limit)}
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_page_breadcrumbs(page_id: str) -> list[dict]:
     """Returns the ancestor path (breadcrumbs) of a page.
 
@@ -536,7 +581,7 @@ async def get_page_breadcrumbs(page_id: str) -> list[dict]:
     return await client.get_page_breadcrumbs(page_id)
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_page_history(page_id: str) -> list[dict]:
     """Lists the version history of a page.
 
@@ -550,7 +595,7 @@ async def get_page_history(page_id: str) -> list[dict]:
 # ====================================================================== #
 # Tools — Spaces
 # ====================================================================== #
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def list_spaces(limit: int = 50) -> list[dict]:
     """Lists the spaces the user has access to.
 
@@ -561,7 +606,7 @@ async def list_spaces(limit: int = 50) -> list[dict]:
     return await client.list_spaces(limit=limit)
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_space(space_id: str) -> dict:
     """Gets the details of a space.
 
@@ -572,7 +617,8 @@ async def get_space(space_id: str) -> dict:
     return await client.get_space(space_id)
 
 
-@mcp.tool
+# Creating is additive, and a second call makes a second space.
+@mcp.tool(annotations=_hints())
 async def create_space(name: str, slug: str | None = None, description: str | None = None) -> dict:
     """Creates a new space.
 
@@ -589,7 +635,7 @@ async def create_space(name: str, slug: str | None = None, description: str | No
 # ====================================================================== #
 # Tools — Comments
 # ====================================================================== #
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_comments(page_id: str, limit: int = 50) -> list[dict]:
     """Gets the comments of a page.
 
@@ -601,7 +647,8 @@ async def get_comments(page_id: str, limit: int = 50) -> list[dict]:
     return await client.get_comments(page_id, limit=limit)
 
 
-@mcp.tool
+# Creating is additive, and a second call makes a second comment.
+@mcp.tool(annotations=_hints())
 async def create_comment(
     page_id: str,
     content: str,
@@ -620,7 +667,8 @@ async def create_comment(
     return await client.create_comment(page_id, content, parent_comment_id=parent_comment_id)
 
 
-@mcp.tool
+# It replaces the previous content of the comment.
+@mcp.tool(annotations=_hints(destructive=True, idempotent=True))
 async def update_comment(comment_id: str, content: str) -> dict:
     """Updates the content of a comment.
 
@@ -635,14 +683,14 @@ async def update_comment(comment_id: str, content: str) -> dict:
 # ====================================================================== #
 # Tools — User / workspace
 # ====================================================================== #
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def get_current_user() -> dict:
     """Returns the authenticated user and workspace information."""
     client = await _get_client()
     return await client.get_current_user()
 
 
-@mcp.tool
+@mcp.tool(annotations=_hints(read_only=True, idempotent=True))
 async def list_workspace_members(limit: int = 50) -> list[dict]:
     """Lists the members of the workspace.
 
