@@ -356,7 +356,21 @@ async def blocks_from_markdown(client: Any, space_id: str, markdown: str) -> lis
             await collab.open(page_id)
             return await collab.read_blocks()
     finally:
-        await client.delete_page(page_id)
+        # Always try to remove the throwaway page, and never let a cleanup
+        # failure mask the real error or abort the flow. A delete that raises
+        # (Docmost has been seen to answer 500 here) would otherwise leave the
+        # original exception swallowed and still orphan the page.
+        try:
+            await client.delete_page(page_id)
+        except Exception as cleanup_exc:  # noqa: BLE001
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Could not delete the temporary conversion page %r: %s. "
+                "It may need to be removed manually from the trash.",
+                page_id,
+                cleanup_exc,
+            )
 
 
 async def update_page_content(

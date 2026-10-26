@@ -7,6 +7,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed (decodecs fork)
+
+- **`move_page`, `delete_page` and `restore_page` now resolve slugIds to UUIDs
+  before calling Docmost.** These endpoints feed their id arguments straight
+  into Postgres `uuid` columns (`pageId` and `parentPageId` for move, `pageId`
+  for delete/restore), so a short 10-char slugId there makes the query abort
+  with `22P02` (invalid input syntax for uuid) and the endpoint returns an
+  opaque **500**. Other endpoints tolerate a slug, but these do not. The client
+  now resolves any non-UUID id via `/pages/info` first. This was the root cause
+  of `create_page(content=..., parent_page_id=<slug>)` and most delete/move
+  calls failing with a 500. (Confirmed from the Docmost server logs:
+  `PostgresError 22P02`, `string_to_uuid`.)
+- **`_position_for` resolves the parent slugId before listing its children**,
+  since `/pages/sidebar-pages` hits the same uuid column.
+- **`blocks_from_markdown` always cleans up its temporary conversion page.** A
+  failure while deleting the throwaway `__docmost_mcp_oss_tmp__` page no longer
+  masks the original error or aborts the flow; it is logged as a warning so the
+  page can be removed manually if Docmost refused the delete.
+
 ### Added
 
 - Every tool declares the four MCP **annotation hints** (`readOnlyHint`,

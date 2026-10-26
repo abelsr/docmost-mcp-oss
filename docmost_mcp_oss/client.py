@@ -421,7 +421,7 @@ class DocmostClient:
             if page_id:
                 await self.move_page(
                     page_id,
-                    page.get("position") or "a0000",
+                    page.get("position") or None,
                     parent_page_id=parent_page_id,
                 )
                 page["parentPageId"] = parent_page_id
@@ -458,11 +458,15 @@ class DocmostClient:
         return await self.request("/pages/update", body)
 
     async def delete_page(self, page_id: str) -> Any:
-        """Moves the page to the trash (this build does not expose permanent deletion)."""
-        return await self.request("/pages/delete", {"pageId": page_id})
+        """Moves the page to the trash (this build does not expose permanent deletion).
+
+        Like move, `/pages/delete` writes `pageId` into a Postgres uuid column
+        and 500s on a slugId (22P02), so resolve it to a UUID first.
+        """
+        return await self.request("/pages/delete", {"pageId": await self._resolve_uuid(page_id)})
 
     async def restore_page(self, page_id: str) -> Any:
-        return await self.request("/pages/restore", {"pageId": page_id})
+        return await self.request("/pages/restore", {"pageId": await self._resolve_uuid(page_id)})
 
     async def move_page(
         self,
@@ -484,18 +488,43 @@ class DocmostClient:
         * ``after``/``before`` place it relative to a sibling page id.
         * Neither of those appends it at the end of the target's children.
 
-        ``position`` is the manual escape hatch: passing it skips all of the
-        above and sends the value as-is.
+        ``position`` is the manual escape hatch: passing it skips the
+        computation and sends the value as-is.
         """
         if position is None:
             position = await self._position_for(
                 page_id, parent_page_id=parent_page_id, after=after, before=before
             )
 
-        body: dict[str, Any] = {"pageId": page_id, "position": position}
+        # `/pages/move` feeds both `pageId` and `parentPageId` into Postgres
+        # `uuid` columns, so a short 10-char slugId in either one makes the
+        # query abort with 22P02 (invalid input syntax for uuid) and the
+        # endpoint answers an opaque 500. Other endpoints tolerate a slug, but
+        # move does not — resolve both to real UUIDs first. (Root cause found
+        # in the Docmost server logs: err.code 22P02, string_to_uuid.)
+        body: dict[str, Any] = {
+            "pageId": await self._resolve_uuid(page_id),
+            "position": position,
+        }
         if parent_page_id is not None:
-            body["parentPageId"] = parent_page_id
+            body["parentPageId"] = await self._resolve_uuid(parent_page_id)
         return await self.request("/pages/move", body)
+
+    async def _resolve_uuid(self, page_ref: str) -> str:
+        """Returns the UUID of a page, resolving a slugId if needed.
+
+        Docmost UUIDs are 36 characters with dashes; its slugIds are short
+        (~10 chars). Anything that is not already a UUID is looked up via
+        `/pages/info`, which accepts either form and returns the canonical
+        `id`.
+        """
+        if _looks_like_uuid(page_ref):
+            return page_ref
+        info = await self.request("/pages/info", {"pageId": page_ref})
+        page_id = info.get("id") if isinstance(info, dict) else None
+        if not page_id:
+            raise DocmostError(None, f"Could not resolve the UUID of page {page_ref!r}")
+        return page_id
 
     async def _position_for(
         self,
@@ -517,6 +546,10 @@ class DocmostClient:
         # `parent_page_id=None` means "the root", which is also the default when
         # the caller did not ask for a specific parent.
         target_parent = parent_page_id if parent_page_id is not None else page.get("parentPageId")
+        # `/pages/sidebar-pages` looks the parent up in a uuid column too, so a
+        # slugId there triggers the same 22P02 500 as move. Resolve it first.
+        if target_parent is not None:
+            target_parent = await self._resolve_uuid(target_parent)
 
         siblings = await self.list_child_pages(space_id=space_id, page_id=target_parent, limit=100)
 
@@ -706,6 +739,19 @@ MAX_LIMIT = 100
 def _clamp_limit(limit: int, *, maximum: int = MAX_LIMIT) -> int:
     """Keeps a page size inside the range Docmost accepts."""
     return max(1, min(int(limit), maximum))
+
+
+def _looks_like_uuid(value: str) -> bool:
+    """True when `value` is a canonical UUID (8-4-4-4-12 hex with dashes).
+
+    Docmost accepts either a UUID or a short slugId to *identify* a page, but
+    some fields (notably `parentPageId` in `/pages/move`) are written straight
+    to a Postgres `uuid` column and reject a slug.
+    """
+    parts = value.split("-")
+    if len(parts) != 5 or [len(p) for p in parts] != [8, 4, 4, 4, 12]:
+        return False
+    return all(c in "0123456789abcdefABCDEF" for c in value.replace("-", ""))
 
 
 def _items(raw: Any) -> list[dict]:

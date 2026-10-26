@@ -24,7 +24,7 @@ from threading import Thread
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docmost_mcp_oss.client import DocmostClient, DocmostError  # noqa: E402
+from docmost_mcp_oss.client import DocmostClient, DocmostError, _looks_like_uuid  # noqa: E402
 
 API_KEY = "test-api-key"
 JWT = "test-jwt-token"
@@ -39,6 +39,9 @@ LOGIN_MODE = "cookie"
 
 # Records every /pages/move call, so tests can assert on nesting.
 MOVED: list[dict] = []
+
+# Records every /pages/delete pageId, to assert slugIds are resolved to UUIDs.
+DELETED: list = []
 
 # Records the `limit` sent to /pages/recent, to assert it is clamped.
 RECENT_LIMITS: list = []
@@ -311,6 +314,13 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
 
+        if path == "/api/pages/delete":
+            # Mirrors the real server: pageId goes into a uuid column, so a
+            # slugId would 500 (22P02). The client must resolve it first; here
+            # we simply record what arrived so the test can assert it is a UUID.
+            DELETED.append(body.get("pageId"))
+            return self._send(200, {"data": {}, "success": True, "status": 200})
+
         return self._send(404, {"statusCode": 404, "message": f"Cannot POST {path}"})
 
 
@@ -424,12 +434,45 @@ async def run_tests(base_url: str) -> None:
         )
         assert page["slugId"] == "imp123", page
         # `/pages/import` ignores parentPageId, so the client must nest it after.
+        # Both ids reaching /pages/move are resolved to UUIDs (the mock maps any
+        # slug -> PAGE), because move 500s on a slugId in those uuid columns.
         assert len(MOVED) == before + 1, f"/pages/move was not called: {MOVED}"
-        assert MOVED[-1]["pageId"] == "imp123", MOVED
+        assert _looks_like_uuid(MOVED[-1]["pageId"]), MOVED
         assert MOVED[-1]["parentPageId"] == PAGE, MOVED
         assert MOVED[-1]["position"] == "a0003", MOVED  # keeps its own position
         assert page["parentPageId"] == PAGE, page
         print("✓ create_page nests content pages via /pages/move (import ignores the parent)")
+
+        # --- 8c-bis. move resolves slugId identifiers to UUIDs ---
+        # `/pages/move` writes BOTH `pageId` and `parentPageId` into Postgres
+        # uuid columns, so a short slugId in either one makes the server answer
+        # 500 (22P02). The client must resolve both to UUIDs before sending.
+        # The mock's /pages/info maps the slug "tRUr7isZOe" -> PAGE (a UUID).
+        MOVED.clear()
+        await dm.move_page("tRUr7isZOe", "a0005", parent_page_id="tRUr7isZOe")
+        assert len(MOVED) == 1, MOVED
+        assert _looks_like_uuid(MOVED[-1]["pageId"]), (
+            f"pageId must be a UUID, got {MOVED[-1]['pageId']!r}"
+        )
+        assert _looks_like_uuid(MOVED[-1]["parentPageId"]), (
+            f"parentPageId must be a UUID, got {MOVED[-1]['parentPageId']!r}"
+        )
+        assert MOVED[-1]["pageId"] == PAGE and MOVED[-1]["parentPageId"] == PAGE, MOVED
+        print("✓ move_page resolves slugId pageId and parent to UUIDs (avoids the 22P02 500)")
+
+        # A UUID is passed through unchanged (no needless /pages/info lookup).
+        MOVED.clear()
+        await dm.move_page(PAGE, "a0005", parent_page_id=PAGE)
+        assert MOVED[-1]["pageId"] == PAGE and MOVED[-1]["parentPageId"] == PAGE, MOVED
+        print("✓ move_page passes UUID identifiers through unchanged")
+
+        # --- 8c-ter. delete resolves a slugId to a UUID (same 22P02 trap) ---
+        DELETED.clear()
+        await dm.delete_page("tRUr7isZOe")
+        assert DELETED[-1] == PAGE, f"delete must resolve the slug to a UUID: {DELETED}"
+        await dm.delete_page(PAGE)
+        assert DELETED[-1] == PAGE, DELETED
+        print("✓ delete_page resolves a slugId to its UUID")
 
         # --- 8e. limits above 100 are clamped; Docmost rejects them outright ---
         RECENT_LIMITS.clear()
